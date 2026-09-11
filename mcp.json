@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "atlassian-confluence": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@aashari/mcp-server-atlassian-confluence"
+      ],
+      "env": {
+        "ATLASSIAN_SITE_NAME": "certificationmaniox",
+        "ATLASSIAN_USER_EMAIL": "YOUR_ATLASSIAN_USER_EMAIL",
+        "ATLASSIAN_API_TOKEN": "${ATLASSIAN_API_TOKEN}"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

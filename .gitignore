@@ -1,0 +1,10 @@
+# Never commit secrets or local state
+.env
+*.env
+*token*
+*secret*
+.DS_Store
+
+# Local Kiro / workspace state
+.kiro/settings/
+node_modules/
