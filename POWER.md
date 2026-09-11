@@ -1,7 +1,7 @@
 ---
 name: "databricks-sharing-advisor"
 displayName: "Databricks Sharing Architecture Advisor"
-description: "Recommends the best Databricks data-sharing architecture (Delta Sharing, Direct Grant, Iceberg REST, JDBC/ODBC SQL warehouse, or shared external location) for a given scenario by asking discovery questions and applying a decision tree. Produces prerequisites, security measures, cost considerations, implementation steps, and ready-to-run SQL/code, and can publish recommendations to Confluence via the Atlassian MCP. Covers same/different metastore, cross-account, cross-region, and Databricks/Snowflake/Power BI/Python/Spark/Iceberg/JDBC consumers."
+description: "Recommends the best Databricks data-sharing architecture (Delta Sharing, Direct Grant, Iceberg REST, JDBC/ODBC SQL warehouse, or shared external location) for a given scenario by asking discovery questions and applying a decision tree. First picks the collaboration modality — direct table sharing, Clean Rooms, Marketplace, or AI-asset/OpenSharing — then produces prerequisites, security measures, cost considerations, implementation steps, and ready-to-run SQL/code, and can publish recommendations to Confluence via the Atlassian MCP. Covers both directions (producer sharing out and consumer bringing data in via federation / external location / open sharing), same/different metastore, cross-account, cross-region, Iceberg v3 / UniForm format choices, an escalation ladder, troubleshooting, and Databricks/Snowflake/Power BI/Python/Spark/Iceberg/JDBC/REST-API consumers."
 keywords: ["databricks", "delta-sharing", "unity-catalog", "apache-iceberg", "jdbc", "confluence"]
 author: "maniox"
 source: "https://github.com/certificationmaniox/databricks-sharing-advisor"
@@ -27,8 +27,12 @@ notebook would.
 > **Recent context (2025–2026):** Delta Sharing is evolving into **OpenSharing**, now a Linux
 > Foundation project and a vendor-neutral protocol that extends zero-copy sharing beyond tables
 > to AI assets (models, agents, unstructured data) and adds cross-cloud connectivity. Sharing
-> live Materialized Views and Streaming Tables is also GA. See the "Recent Sharing Features
-> (2025–2026)" reference section near the end of this file for details and sources.
+> live Materialized Views and Streaming Tables is GA, and **Apache Iceberg v3 is GA** on Unity
+> Catalog (deletion vectors, row lineage, VARIANT) across managed, foreign, and UniForm tables.
+> This advisor picks the **collaboration modality first** (Decision 0: direct table sharing,
+> Clean Rooms, Marketplace, or AI-asset sharing) before the table-sharing decision tree, and
+> factors Iceberg v3 / UniForm into the shared table format (Decision 1c). See the "Recent
+> Sharing Features (2025–2026)" reference section near the end of this file for details and sources.
 
 ## How to Use
 
@@ -76,14 +80,19 @@ Discovery Questions interactively instead of assuming everything. Rules:
   single question, show its options and its default, and note the user can skip. Only after the
   user replies do you ask the next question. Follow the producer-first order below, skipping any
   question that is already known or made irrelevant by an earlier answer:
-  1. `tables_to_share` → 2. `provider_asset_type` → 3. `same_metastore` → 4. `same_account` →
-  5. `same_region` → 6. `provider_region` → 7. `table_format` → 8. `foreign_catalog` (only if
-     `table_format` is foreign Iceberg) → 9. `consumer_name` → 10. `consumer_asset_intent` →
-  11. `consumer_platform` → 12. `connectivity` → 13. `consumer_region` → 14. `consumer_identity` →
-  15. `consumer_external` → 16. `consumer_needs_transform` → 17. `access_type` → 18. `contains_pii` →
-  19. `data_classification` → 20. `needs_column_security` → 21. `needs_row_security` →
-  22. `groups_exist` → 23. `data_volume` → 24. `needs_cdc` → 25. `freshness_requirement` →
-  26. `sharing_duration` → 27. `data_residency`.
+  1. `shared_asset_kind` → 2. `collaboration_intent` → 3. `raw_data_exposure_ok` (only if
+     `collaboration_intent` is "Joint analysis..." or unclear) → 4. `recipient_count` →
+  5. `tables_to_share` → 6. `provider_asset_type` → 7. `same_metastore` → 8. `same_account` →
+  9. `same_region` → 10. `provider_region` → 11. `table_format` → 12. `foreign_catalog` (only if
+     `table_format` is foreign Iceberg) → 13. `consumer_name` → 14. `consumer_asset_intent` →
+  15. `consumer_platform` → 16. `connectivity` → 17. `consumer_region` → 18. `consumer_identity` →
+  19. `consumer_external` → 20. `consumer_needs_transform` → 21. `access_type` → 22. `contains_pii` →
+  23. `data_classification` → 24. `needs_column_security` → 25. `needs_row_security` →
+  26. `groups_exist` → 27. `data_volume` → 28. `needs_cdc` → 29. `freshness_requirement` →
+  30. `sharing_duration` → 31. `data_residency`.
+  The first four questions establish the collaboration modality (Decision 0). If they resolve to
+  a non-table-sharing modality (Clean Rooms, Marketplace, or AI-asset sharing), skip the
+  table-sharing-only questions that no longer apply and go to the matching Decision 0 branch.
 - **Keep the console clean during intake.** Do NOT print the activated POWER.md, the decision
   tree, solution catalog, or long examples while asking questions. Just ask the current question.
   Save the full recommendation for the end.
@@ -179,14 +188,103 @@ and create/update a page. Common flows:
 | `provider_asset_type` | What is the provider sharing? | Source-aligned data product, Curated/aggregate data product, Data port, Tables | Tables |
 | `consumer_name` | Consumer name/team | free text | Finance Team |
 | `consumer_asset_intent` | What does the consumer consume it as? | Source-aligned data product, Curated/aggregate data product, Data port, Tables, Same as provider | Same as provider |
+| `direction` | Are you sharing data OUT or bringing data IN? | Producer (share out), Consumer (bring in) | Producer (share out) |
+| `source_platform` | If Consumer, where is the data coming from? | Another Databricks account/metastore, Query engine (Snowflake/Postgres/Redshift/MySQL/BigQuery), Another catalog (AWS Glue / Hive Metastore), Partner S3 bucket (Delta/Parquet files), Open Delta Sharing provider | Query engine (Snowflake/Postgres/Redshift/MySQL/BigQuery) |
+| `shared_asset_kind` | What kind of asset is shared? | Data (tables/views), AI model, Agent / Agent Skill, Unstructured files, Notebook/dashboard | Data (tables/views) |
+| `collaboration_intent` | How do you want to collaborate? | Direct share to a known consumer, Joint analysis without exposing raw data, Publish to many/unknown consumers, Let advisor choose | Let advisor choose |
+| `recipient_count` | How many recipients? | One / a few named, Many / broad audience | One / a few named |
+| `raw_data_exposure_ok` | OK to expose raw rows to the other party? | Yes, No (compute on joined data only) | Yes |
 
 `consumer_slug` = `consumer_name` lowercased with spaces and hyphens replaced by underscores.
 
 ## Decision Tree
 
+### Decision 0: Collaboration modality (evaluate first)
+
+Pick the sharing *modality* before the table-sharing decision tree. Evaluate in order; first
+match wins. Only if the result is `TABLE_SHARING` do you continue to Decision 1. The other
+modalities are first-class Databricks collaboration approaches that Decision 1 does not model.
+
+1. If `shared_asset_kind` in {"AI model", "Agent / Agent Skill", "Unstructured files"} OR
+   `collaboration_intent` implies sharing models/agents:
+   - modality = `AI_ASSET_SHARING`
+   - note: "OpenSharing (the evolution of Delta Sharing, now a Linux Foundation project) shares
+     AI assets — models, agents/Agent Skills, and unstructured files — zero-copy over the open
+     protocol. For conversational/natural-language access to data, use **Genie Agent Sharing
+     (Beta)** rather than sharing raw tables."
+   - Then still run Decision 1 for any accompanying tabular data the asset depends on.
+2. Else if `raw_data_exposure_ok` == "No (compute on joined data only)" OR `collaboration_intent`
+   == "Joint analysis without exposing raw data":
+   - modality = `CLEAN_ROOMS`
+   - note: "Use **Databricks Clean Rooms** (powered by Delta Sharing) for privacy-centric
+     collaboration where neither party exposes raw data. Supports multi-party rooms (up to 10
+     orgs), any cloud (GA on AWS/Azure/GCP), in-place privacy-centric identity resolution, and
+     self-run notebooks with explicit approval."
+   - Strongly prefer this over table sharing when `contains_pii` == "Yes" AND
+     `consumer_external` == "Yes" — it replaces the "don't share PII externally" dead-end with a
+     workable path.
+3. Else if `collaboration_intent` == "Publish to many/unknown consumers" OR `recipient_count`
+   == "Many / broad audience":
+   - modality = `MARKETPLACE`
+   - note: "Use the **Databricks Marketplace** to publish a data (or AI-asset) product to many
+     or unknown consumers via Delta Sharing — recipients get live, no-copy access. Choose this
+     over a per-recipient RECIPIENT when the audience is broad or you want a listing/monetization
+     path. For a small set of named recipients, use table sharing (Decision 1)."
+4. Else:
+   - modality = `TABLE_SHARING` → continue to Decision 1.
+
+Emit the chosen modality in the recommendation. For `CLEAN_ROOMS`, `MARKETPLACE`, and
+`AI_ASSET_SHARING`, present the modality note as the primary recommendation and use Decision 1
+only for any supporting tabular data; the Decision 1 catalog/SQL/diagram apply to that tabular
+portion.
+
+### Decision 0.5: Direction (producer vs consumer)
+
+The most useful cut after modality: are you the **producer** (sharing data out to consumers
+wherever they run) or the **consumer** (bringing external data into your own lakehouse)? The two
+use different toolkits. Evaluate this before Decision 1.
+
+- If `direction` == "Producer (share out)" (default) → continue to **Decision 1** (producer
+  protocol tree below).
+- If `direction` == "Consumer (bring in)" → use **Decision 1-C** (consumer intake tree) instead
+  of Decision 1. The consumer's default is "query in place," not "copy in": prefer a live,
+  zero-copy read and only introduce a copy-based ingestion pipeline when you need historical
+  snapshots or query volume makes live federation too chatty.
+
+#### Decision 1-C: Consumer intake (you are bringing data in)
+
+Evaluate in order; first match wins. Selects `primary` from the consumer solutions.
+
+1. If `source_platform` == "Another Databricks account/metastore":
+   - primary = `CONSUME_D2D_SHARE`, secondary = "Open Delta Sharing client"
+   - note: "Mount the provider's Delta share as a catalog (`CREATE CATALOG ... USING SHARE`); the
+     data stays in the provider's S3 and you query it live. Masks/row filters defined by the
+     provider are enforced (unlike open-protocol or DEEP CLONE)."
+2. Else if `source_platform` == "Query engine (Snowflake/Postgres/Redshift/MySQL/BigQuery)":
+   - primary = `LAKEHOUSE_FEDERATION`, secondary = "Copy-based ingestion (only if too chatty)"
+   - note: "Register the source as a foreign catalog over a JDBC-style CONNECTION and push queries
+     down to it — query in place, no ingestion pipeline. Compute is paid by the source engine."
+3. Else if `source_platform` == "Another catalog (AWS Glue / Hive Metastore)":
+   - primary = `CATALOG_FEDERATION`, secondary = "Lakehouse Federation"
+   - note: "Federate the whole metastore into UC as a foreign catalog; read every registered
+     table through one three-level `catalog.schema.table` namespace, governed identically. The
+     common AWS case is a Glue-backed 'unified layer' mixing native UC Delta and Glue S3 tables."
+4. Else if `source_platform` == "Partner S3 bucket (Delta/Parquet files)":
+   - primary = `EXTERNAL_LOCATION_READ`, secondary = "COPY INTO (for an isolated local snapshot)"
+   - note: "Register the partner's path in UC with a read-only cross-account IAM role via a
+     storage credential + external location, then read in place. No duplicate storage."
+5. Else (`source_platform` == "Open Delta Sharing provider"):
+   - primary = `CONSUME_OPEN_DELTA_SHARING`, secondary = "Persist to bronze (only if you must keep it)"
+   - note: "Point Spark or the `delta-sharing` client at the provider's `.share` profile. Works
+     even if the provider is not on Databricks. Persist into bronze only if you need to retain it."
+
+For a consumer recommendation, skip the producer-only Decisions 1, 1b, and 1c, and skip
+producer prerequisites/SQL; use the consumer solution's steps and code instead. Decisions 3
+(security) and 4 (cost) still apply where relevant (e.g. cross-region egress on federated reads).
+
 ### Decision 1: Primary + secondary solution
 
-Evaluate in order; first match wins.
+**(Producer direction only.)** Evaluate in order; first match wins.
 
 1. If `access_type` == "Read-write":
    - primary = `SHARED_EXTERNAL_LOCATION`, secondary = "Reverse ETL Pipeline"
@@ -212,6 +310,32 @@ Evaluate in order; first match wins.
    - primary = `DELTA_SHARING_OPEN_PROTOCOL`, secondary = "S3 Direct Access with IAM"
 9. Else (dbt, Other):
    - primary = `DELTA_SHARING_OPEN_PROTOCOL`, secondary = `JDBC_SQL_WAREHOUSE` (dbt-databricks / generic SQL connector)
+
+Additional producer patterns — evaluate these BEFORE rules 5–10 when the corresponding need is
+stated (they override platform-based selection):
+
+- If the consumer is an **application calling over HTTP** and should not install a driver:
+  - primary = `SQL_STATEMENT_EXECUTION_API`, secondary = `JDBC_SQL_WAREHOUSE`
+  - note: "Programmatic access over HTTPS via the SQL Statement Execution REST API against a SQL
+    warehouse — no driver install. Parameterize statements to prevent injection; use the
+    EXTERNAL_LINKS disposition (pre-signed URLs) for large result sets rather than inlining JSON.
+    Like JDBC, the PROVIDER pays warehouse compute per query."
+- If the consumer is an **external app that must NOT hold Databricks credentials** (a managed
+  gateway fronts the API):
+  - primary = `API_GATEWAY_FACADE`, secondary = `SQL_STATEMENT_EXECUTION_API`
+  - note: "Front the SQL Statement Execution API with a managed API gateway / OData facade. Same
+    governed source as the REST API pattern, but the app only ever sees the gateway, never
+    Databricks credentials. Gold + non-PII only."
+- If the need is **sub-second, per-row lookups for live inference** (not analytical queries):
+  - primary = `ONLINE_TABLES_MODEL_SERVING`, secondary = "(none — this is not a sharing job)"
+  - note: "Publish features to Online Tables / Model Serving for sub-second per-row reads. This is
+    a serving path, not a SQL-warehouse or Delta Sharing job. Anonymized gold only for
+    external/ML serving."
+- Last resort — if the **consumer cannot pull** at all (legacy app / relational datamart with no
+  Databricks/federation/sharing path):
+  - primary = `PROVIDER_PUSH_DATAMART`, secondary = "(none — no pull path exists)"
+  - warning: "Copy-based, provider-owned compute, batch latency. Use ONLY when no pull path
+    exists. Because the data leaves Unity Catalog, mask at source and re-tag/re-mask downstream."
 
 #### Decision 1b: Shared-object modifier (applies to Delta Sharing solutions)
 
@@ -239,12 +363,58 @@ Emit the chosen `shared_object` in the recommendation. When it is a Materialized
 Streaming Table, the `ALTER SHARE ... ADD TABLE` statements in the generated SQL apply
 unchanged (an MV/ST is added to a share the same way as a table).
 
+#### Decision 1c: Table-format modifier (Iceberg v3 / UniForm)
+
+This modifier does NOT change which primary solution is selected. It refines *what format the
+shared table should be* so the recommendation matches the consumer's engine and workload. Apply
+after Decision 1. Iceberg v3 is GA on Unity Catalog managed, foreign, and UniForm-enabled tables
+(deletion vectors, row lineage/tracking, VARIANT). See "Recent Sharing Features (2025–2026)".
+
+- If `needs_cdc` == "Yes" AND the consumer is non-Databricks (any Iceberg REST client, Snowflake,
+  Trino/Flink/DuckDB, or a Spark/open-protocol consumer):
+  - format_recommendation = **managed Iceberg v3**
+  - note: "For cross-engine CDC, prefer managed Iceberg v3 — row lineage (permanent row ID +
+    sequence number) identifies changed rows and deletion vectors apply changes without file
+    rewrites, so CDC is a native property of the table readable by any Iceberg engine. This is
+    stronger than Delta `WITH HISTORY` (change data feed), which the consumer's engine must
+    understand."
+  - (For a Databricks-to-Databricks consumer, Delta change data feed via `WITH HISTORY` remains
+    fine; managed Iceberg v3 is optional.)
+- If the data is semi-structured (logs, API responses, clickstream, IoT payloads) or the consumer
+  needs schema-flexible columns:
+  - format_recommendation = **managed Iceberg v3 with VARIANT**
+  - note: "Use the Iceberg v3 VARIANT column type to share semi-structured payloads alongside
+    relational columns in one governed table — no flattening, no separate store, no ETL
+    normalization, and new fields are queryable without a schema migration."
+- Else if `table_format` == "Delta" AND `consumer_platform` in {"Snowflake",
+  "Iceberg REST client (Trino/Flink/DuckDB/etc.)"} (or the consumer otherwise reads Iceberg, e.g.
+  BigQuery/Redshift/Athena/Trino):
+  - format_recommendation = **UniForm (write Delta, read as Iceberg)**
+  - note: "Enable UniForm so a single Delta copy is readable as Iceberg by the consumer's engine
+    — no replication pipeline and no drift."
+  - **Deletion-vectors caveat (important):** the enablement path decides whether deletion vectors
+    (DV) may be on:
+    - *UniForm / IcebergCompatV2 (the classic `delta.enableIcebergCompatV2=true` path):* DV must
+      be **disabled** on the table (`delta.enableDeletionVectors=false`); you cannot enable DV on
+      a Delta table with Iceberg reads enabled. If DV were previously on, run `REORG ... PURGE`
+      then `OPTIMIZE`. This is the common cause of a missing `iceberg.metadata.location`.
+    - *Managed Iceberg v3 (DBR 18+):* deletion vectors are part of the spec and **on by default** —
+      do NOT tell the user to turn DV off here. Only the CompatV2/UniForm path needs DV off.
+    So: recommend `enableDeletionVectors=false` ONLY for the UniForm/CompatV2 recommendation, not
+    for a managed Iceberg v3 recommendation.
+- Else: keep `table_format` as provided (no format change).
+
+Emit `format_recommendation` in the recommendation when set, and note it does not change the
+primary solution — it changes the format of the shared object.
+
 ### Decision 2: Prerequisites (add each that applies)
 
 - `groups_exist` == "No" → "Create account-level groups in accounts.cloud.databricks.com (or via SCIM)"
 - `same_metastore` == "No" AND `consumer_platform` == "Databricks" → "Exchange metastore sharing identifiers between provider and consumer"
 - `consumer_identity` == "Service Principal" → "Create service principal at account level + generate OAuth credentials" AND "Add service principal to appropriate groups"
 - `consumer_external` == "Yes" → "Create RECIPIENT in Unity Catalog for external consumer" AND "Generate and securely transmit activation link to consumer"
+- `consumer_external` == "Yes" AND `consumer_platform` != "Databricks" → "For non-Databricks recipients who authenticate with their own IdP (Azure Entra ID, Okta, etc.), use OIDC Token Federation (GA) instead of long-lived bearer tokens in the .share profile — the recipient authenticates via their custom Identity Provider"
+- `consumer_external` == "Yes" AND primary in {`DELTA_SHARING_SNOWFLAKE`, `DELTA_SHARING_POWER_BI`, `DELTA_SHARING_OPEN_PROTOCOL`, `ICEBERG_REST_SHARING`} → "If firewall/network setup is a barrier to live open-lakehouse access, consider the Delta Sharing Network Gateway (Public Preview) to let recipients access the source live with minimal manual network configuration (supports customer-managed S3/ADLS and Databricks default storage)"
 - primary == `ICEBERG_REST_SHARING` → "Enable the Unity Catalog Iceberg REST Catalog API endpoint and confirm the consumer client implements Iceberg REST (Iceberg 1.11+ for scan planning / ABAC)" AND "Confirm credential vending is enabled so the consumer gets scoped storage credentials instead of broad bucket access"
 - `table_format` == "Iceberg (foreign/external catalog)" → "Register the foreign Iceberg catalog in UC via a federation connector (<foreign_catalog>)" AND "Verify UC credential vending for foreign Iceberg is configured for the source storage"
 - primary == `JDBC_SQL_WAREHOUSE` → "Provision a Databricks SQL warehouse (Serverless recommended) and capture its JDBC/ODBC connection details (Server Hostname, HTTP Path)" AND "Create a service principal or PAT for the consumer and GRANT it USE CATALOG/SCHEMA + SELECT on the target tables" AND "If the consumer is external or on a private network, configure PrivateLink / IP access lists for the SQL warehouse"
@@ -266,8 +436,9 @@ unchanged (an MV/ST is added to a share the same way as a table).
   - "Require VPC PrivateLink for data access (no public internet)"
   - "Review with security team before enabling sharing"
 - primary == `ICEBERG_REST_SHARING` AND (`needs_column_security` == "Yes" OR `needs_row_security` == "Yes" OR `contains_pii` == "Yes"):
-  - "Use cross-engine Attribute-Based Access Control (ABAC, Beta): define column masks, row filters, and tag-based policies once in UC; UC evaluates them during server-side Iceberg REST scan planning and returns a filtered scan plan so external engines only read authorized data"
-  - "Prefer ABAC over per-engine view logic when multiple external Iceberg engines access the same table — governance is enforced in UC, not duplicated per engine"
+  - "Use cross-engine Attribute-Based Access Control (ABAC, Beta) for direct query access (not sharing): define column masks, row filters, and tag-based policies once in UC; UC evaluates them during server-side Iceberg REST scan planning and returns a filtered scan plan so an engine querying UC directly only reads authorized data"
+  - "Prefer ABAC over per-engine view logic when multiple external Iceberg engines query the same UC table directly — governance is enforced in UC, not duplicated per engine"
+  - "IMPORTANT — ABAC on a Delta *share* does NOT restrict the recipient. A provider can add ABAC-secured tables/schemas to a share, but the recipient receives full access to the shared asset and applies their OWN ABAC on their side. To limit what an external RECIPIENT sees, share a Materialized View of aggregates, a filtered/secure view, or only the relevant partitions — do not rely on provider ABAC to mask a recipient's copy."
 - primary == `JDBC_SQL_WAREHOUSE`:
   - "Governance is enforced live at query time — apply UC grants and dynamic views (column masking / row filters) on the SQL warehouse; the consumer only sees what their principal is authorized to read"
   - "Prefer OAuth service principal credentials over long-lived PATs; rotate/scope tokens and restrict to the specific catalog/schema"
@@ -304,6 +475,15 @@ unchanged (an MV/ST is added to a share the same way as a table).
 | `SHARED_EXTERNAL_LOCATION` | Shared S3 External Location | Both parties access same S3 path via separate IAM roles. Supports read-write. | High | Depends on write frequency | S3 storage + IAM management overhead |
 | `ICEBERG_REST_SHARING` | Unity Catalog Iceberg REST Sharing | Share live data to any Iceberg REST-compatible client (Trino, Flink, DuckDB, Spark, Snowflake) via UC's Iceberg REST Catalog API over the open Delta Sharing protocol. Works for managed and foreign Iceberg tables; governance (incl. cross-engine ABAC) and credential vending stay in UC. | Medium | On-demand (live reads, no copies) | S3 egress + consumer compute; zero provider compute; auto-optimized tables |
 | `JDBC_SQL_WAREHOUSE` | JDBC/ODBC over Databricks SQL Warehouse | Consumer connects live to a Databricks SQL warehouse via JDBC/ODBC (BI tools, apps, dbt). Data stays in Databricks; UC grants + dynamic views + ABAC enforce governance at query time. No dataset copy. | Low-Medium | Live (interactive query latency) | Provider pays SQL warehouse compute for each query; no egress if consumer is remote client |
+| `SQL_STATEMENT_EXECUTION_API` | SQL Statement Execution REST API | App calls over HTTPS against a SQL warehouse — no driver install. Parameterized statements; EXTERNAL_LINKS disposition for large exports. UC-governed. | Low-Medium | Live | Provider pays SQL warehouse compute per query |
+| `API_GATEWAY_FACADE` | API Gateway / OData Facade | A managed gateway fronts the SQL Statement Execution API so the external app never holds Databricks credentials. Same governed source; gold + non-PII only. | Medium | Live | Provider pays warehouse compute + gateway |
+| `PROVIDER_PUSH_DATAMART` | Provider PUSH to Consumer Datamart | Copy-based, last resort when the consumer cannot pull. Provider pushes governed gold on a schedule; data leaves UC so re-mask/re-tag downstream. | Medium-High | Batch | Provider owns compute; copy storage on consumer |
+| `ONLINE_TABLES_MODEL_SERVING` | Online Tables / Model Serving | Sub-second per-row lookups for live inference. Not a SQL-warehouse or sharing job. Anonymized gold only for external/ML serving. | Medium | Sub-second (serving) | Provider pays serving compute |
+| `CONSUME_D2D_SHARE` | Consume: Mount D2D Share as Catalog | (Consumer) Mount a provider's Delta share as a catalog and query live; provider masks/row filters enforced. | Low | Live (zero-copy) | Consumer compute; S3 egress if cross-region |
+| `LAKEHOUSE_FEDERATION` | Consume: Lakehouse Federation | (Consumer) Register a query engine (Snowflake/Postgres/Redshift/BigQuery) as a foreign catalog and push queries down — no ingestion pipeline. | Medium | Live (query in place) | Source engine compute |
+| `CATALOG_FEDERATION` | Consume: Catalog Federation (Glue/Hive) | (Consumer) Federate a whole Glue/Hive metastore into UC as a foreign catalog; read all registered tables via one namespace, governed identically. | Medium | Live | Consumer compute |
+| `EXTERNAL_LOCATION_READ` | Consume: Partner S3 External Location | (Consumer) Register a partner's S3 path with a read-only cross-account IAM role and read Delta/Parquet in place — no duplicate storage. | Low-Medium | Live | Consumer compute; cross-account egress |
+| `CONSUME_OPEN_DELTA_SHARING` | Consume: Open Delta Sharing Feed | (Consumer) Read a vendor's open Delta Sharing feed via Spark/`delta-sharing` from a `.share` profile; works even if the vendor is not on Databricks. | Low | On read | Consumer compute; S3 egress |
 
 **Recent capabilities that apply across the Delta Sharing solutions above** (see "Recent
 Sharing Features (2025–2026)" for sources):
@@ -754,10 +934,103 @@ Emit the diagram matching the primary solution.
   Auth: OAuth service principal (preferred) or PAT; PrivateLink/IP ACLs if external
 ```
 
+### Additional producer patterns
+
+`SQL_STATEMENT_EXECUTION_API` / `API_GATEWAY_FACADE`
+```
+┌───────────────────────────────┐        ┌──────────────────────────────┐
+│  DATABRICKS (Provider)        │ HTTPS  │  App / gateway               │
+│  SQL Warehouse + UC grants    │◄───────│  POST /sql/statements        │
+│  demo_sales.gold_products     │───────►│  rows (INLINE / EXTERNAL_LINKS)│
+│  (API_GATEWAY_FACADE: a       │  REST  │  gateway hides DBX creds     │
+│   managed gateway fronts this)│        │                              │
+└───────────────────────────────┘        └──────────────────────────────┘
+  No driver install. Provider pays warehouse compute per query.
+```
+
+`ONLINE_TABLES_MODEL_SERVING`
+```
+┌───────────────────────────────┐        ┌──────────────────────────────┐
+│  DATABRICKS (Provider)        │  HTTPS │  Inference client / app      │
+│  Online Table / Serving       │◄──────►│  sub-second per-row lookups  │
+│  (features from gold)         │  serve │                              │
+└───────────────────────────────┘        └──────────────────────────────┘
+  Serving path, NOT a warehouse/sharing job. Anonymized gold only for external.
+```
+
+`PROVIDER_PUSH_DATAMART` (last resort)
+```
+┌───────────────────────────────┐  push  ┌──────────────────────────────┐
+│  DATABRICKS (Provider)        │  JDBC  │  Consumer datamart (legacy)  │
+│  scheduled job: filter gold   │───────►│  stg table → MERGE into target│
+│  mask at source (leaves UC)   │  batch │  copy lives here             │
+└───────────────────────────────┘        └──────────────────────────────┘
+  Copy-based, provider owns compute, batch latency. Re-tag/re-mask downstream.
+```
+
+## Consumer Architecture Diagrams
+
+Emit the diagram matching the consumer solution (Decision 1-C). In all of these YOU are the
+consumer bringing data in; the default is query-in-place, not copy-in.
+
+### CONSUME_D2D_SHARE
+```
+┌───────────────────────────┐  Delta   ┌───────────────────────────┐
+│  PROVIDER (another DBX)   │  Sharing │  YOU (Consumer, Databricks)│
+│  finance_share            │─────────►│  CREATE CATALOG USING SHARE│
+│  S3: s3://provider-bucket │◄─────────│  query live, masks enforced│
+└───────────────────────────┘  live    └───────────────────────────┘
+  Zero-copy; data stays in provider S3. Cross-region = S3 egress.
+```
+
+### LAKEHOUSE_FEDERATION
+```
+┌───────────────────────────┐  JDBC    ┌───────────────────────────┐
+│  SOURCE ENGINE            │  push-   │  YOU (Consumer, Databricks)│
+│  Snowflake/Postgres/etc.  │  down    │  FOREIGN CATALOG over      │
+│  (data stays put)         │◄────────►│  CONNECTION; join live     │
+└───────────────────────────┘  query   └───────────────────────────┘
+  No ingestion pipeline; source engine runs the pushed-down query.
+```
+
+### CATALOG_FEDERATION (Glue / Hive)
+```
+┌───────────────────────────┐          ┌───────────────────────────┐
+│  AWS Glue / Hive Metastore│  feder-  │  YOU (Consumer, UC)        │
+│  many registered S3 tables│  ate     │  FOREIGN CATALOG glue_*    │
+│  s3://glue-backed/...      │◄────────►│  one catalog.schema.table  │
+└───────────────────────────┘          │  namespace, governed by UC │
+                                        └───────────────────────────┘
+  UC routes Glue-backed S3 and UC-managed tables identically.
+```
+
+### EXTERNAL_LOCATION_READ (partner S3)
+```
+┌───────────────────────────┐          ┌───────────────────────────┐
+│  PARTNER S3 BUCKET        │  read-   │  YOU (Consumer, Databricks)│
+│  s3://partner-feed/...     │  only    │  STORAGE CREDENTIAL +      │
+│  Delta/Parquet files       │◄─────────│  EXTERNAL LOCATION; read   │
+└───────────────────────────┘  IAM role│  in place (no copy)        │
+                                        └───────────────────────────┘
+  Cross-account read-only IAM role. COPY INTO only for a local snapshot.
+```
+
+### CONSUME_OPEN_DELTA_SHARING
+```
+┌───────────────────────────┐  Delta   ┌───────────────────────────┐
+│  VENDOR (any platform)    │  Sharing │  YOU (Consumer)            │
+│  open .share profile       │  (open)  │  spark.read.format(        │
+│  pre-signed S3 URLs        │─────────►│  'deltaSharing'); persist  │
+└───────────────────────────┘  HTTPS   │  to bronze only if needed  │
+                                        └───────────────────────────┘
+  Works even if the vendor is not on Databricks.
+```
+
 ## Output Format
 
 Present the recommendation in this order:
-1. Recommended architecture: primary solution name, description, complexity, latency, cost, and the alternative. When the primary is a Delta Sharing solution, also state the `shared_object` from Decision 1b (Table, Materialized View, or Streaming Table) and why.
+0. Collaboration modality (Decision 0): state whether this is direct table sharing, Clean Rooms, Marketplace, or AI-asset sharing, and why. For a non-table-sharing modality, lead with its note as the primary recommendation and treat the rest of this list as applying to any supporting tabular data.
+1. Recommended architecture: primary solution name, description, complexity, latency, cost, and the alternative. When the primary is a Delta Sharing solution, also state the `shared_object` from Decision 1b (Table, Materialized View, or Streaming Table) and why. State the `format_recommendation` from Decision 1c (managed Iceberg v3 / VARIANT / UniForm) when set.
 2. Prerequisites (or "No special prerequisites. Ready to implement." if none).
 3. Security measures (or "Standard security (Unity Catalog default governance applies)." if none) and any warnings.
 4. Cost considerations.
@@ -786,12 +1059,17 @@ Iceberg catalog across five capability areas:
    catalogs (AWS Glue, Snowflake Horizon, Hive Metastore, Google Cloud Lakehouse, Palantir,
    Salesforce, Workday) while data and source catalog stay in place — a single pane of glass.
 3. Cross-engine ABAC (Beta) — Define column masks, row filters, and tag-based policies once in
-   UC. When an external Iceberg engine requests access, UC evaluates policies during
+   UC. When an external Iceberg engine queries UC directly, UC evaluates policies during
    server-side scan planning and returns a filtered scan plan, so engines only read authorized
-   data. Any client implementing Iceberg REST scan planning (Iceberg 1.11+) enforces this.
+   data. Any client implementing Iceberg REST scan planning (Iceberg 1.11+) enforces this. Note
+   this governs *direct query access*, not what a Delta Sharing recipient sees — see area 4.
 4. Zero-copy secure sharing — Iceberg is a first-class source and destination in Delta Sharing.
    Sharing to Iceberg REST clients is GA; recipients (Snowflake, Trino, Flink, Spark) query
    shared data live with no manual ingestion. Foreign Iceberg sharing is in Public Preview.
+   ABAC and sharing interact carefully: a provider can add ABAC-secured tables/schemas to a
+   share, but the ABAC policy does NOT govern the recipient — the recipient gets full access to
+   the shared asset and can apply their own ABAC. To restrict what an external recipient sees,
+   share an aggregated Materialized View, a secure/filtered view, or only specific partitions.
 5. Performance/format innovation — Predictive Optimization + Liquid Clustering keep tables fast
    without manual tuning, and layout improvements benefit external engines too. Iceberg v3 is
    GA (deletion vectors, row tracking, VARIANT) across managed, foreign, and UniForm tables;
@@ -805,16 +1083,36 @@ When to lean on Iceberg in this advisor:
 - Multiple external engines hit the same table with row/column security needs → use ABAC rather
   than per-engine views.
 
+## Escalation Ladder (prefer the top rung that fits)
+
+When more than one pattern could work, prefer the highest zero-copy, Unity Catalog-governed rung
+before dropping to a copy-based one. Rank from most to least preferred:
+
+1. **Direct GRANT + views** (same metastore) — zero copy, zero extra cost.
+2. **D2D Delta Sharing** (different metastore, both Databricks) — native, token-free.
+3. **Lakehouse / Catalog Federation** (consumer side) · **UniForm + Iceberg REST** (producer,
+   non-Databricks Iceberg consumer) — live, zero-copy, governed.
+4. **JDBC/ODBC** or **SQL Statement Execution API** (+ **API Gateway facade** when the app can't
+   hold credentials) — live query; provider pays compute.
+5. **Open Delta Sharing** — broadest reach; on-read.
+6. **Provider PUSH / copy** — last resort, only when the consumer cannot pull.
+
+Notes: **Online Tables / Model Serving** is off-ladder — it is a serving path for sub-second
+per-row lookups, not an analytical sharing rung. **DEEP CLONE** is a writable-snapshot pattern,
+not an access rung: it drops governance, so re-tag and re-mask after cloning.
+
 ## Best Practices
 
+- Pick the collaboration modality first (Decision 0). Direct table sharing is not always the answer: use **Clean Rooms** when raw data must not be exposed (especially PII + external), the **Marketplace** for broad/unknown audiences, and **AI-asset sharing / Genie Agent Sharing** for models, agents, or conversational access.
 - Confirm the metastore/account/region topology first — Decision 1 short-circuits on `access_type` (read-write) and `same_metastore` before platform is even considered.
+- Match the shared table format to the consumer (Decision 1c): managed **Iceberg v3** for cross-engine CDC (row lineage + deletion vectors), **VARIANT** for semi-structured data, and **UniForm** to let an Iceberg-reading consumer (Snowflake/Trino/BigQuery/etc.) read a single Delta copy with no replication.
 - Delta Sharing is read-only. Any read-write requirement routes to `SHARED_EXTERNAL_LOCATION` regardless of platform.
 - Never share PII externally; for `contains_pii` + `consumer_external`, share only aggregated/anonymized gold products.
 - For Confidential/Restricted data, enable audit logging and require PrivateLink, and get a security review before enabling sharing.
 - Watch cross-region egress cost for Large/Very Large volumes; consider S3 replication to the consumer region.
 - Treat the generated SQL as a starting template — replace catalog/schema/table names, sharing IDs, and IAM ARNs with real values before running.
 - For any non-Databricks Iceberg consumer, prefer `ICEBERG_REST_SHARING` (live, zero-copy, governed) over exporting files; managed Iceberg stays auto-optimized and read-write from any engine.
-- Enforce row/column governance for external Iceberg engines with cross-engine ABAC in UC rather than duplicating view logic per engine.
+- Enforce row/column governance for external Iceberg engines that query UC directly with cross-engine ABAC in UC rather than duplicating view logic per engine. But note ABAC does NOT restrict a Delta Sharing recipient — to limit what a recipient sees, share an aggregated Materialized View, a secure/filtered view, or specific partitions.
 - To bring an external Iceberg estate under governance without moving data, register it as Foreign Iceberg via a federation connector and share it in place.
 - Choose `JDBC_SQL_WAREHOUSE` for live, governed SQL access from BI tools/apps/dbt when a copy or share protocol isn't wanted — but remember the provider (not the consumer) pays SQL warehouse compute per query, so right-size and auto-stop the warehouse.
 - For JDBC, prefer OAuth service principals over long-lived PATs and enforce governance with UC grants + dynamic views so each consumer principal only reads authorized rows/columns.
@@ -876,6 +1174,55 @@ protocol, across clouds, regions, and platforms. GA additions:
   so the consumer gets always-fresh data without duplicate pipelines.
 - Consumer needs only filtered/summarized results (esp. with PII concerns) → suggest sharing a
   **Materialized View** of aggregates rather than raw tables, optionally with column mapping.
+
+### Collaboration modalities beyond direct table sharing
+Source: Databricks, "What's New with Data Sharing and Collaboration - Summer 2025"
+(https://www.databricks.com/blog/whats-new-data-sharing-and-collaboration-summer-2025) and the
+OpenSharing blogs above. Content was rephrased for compliance with licensing restrictions.
+
+Direct table sharing (Decision 1) is one of several first-class collaboration modalities. The
+advisor selects among them in Decision 0:
+- **Databricks Clean Rooms** — privacy-centric collaboration powered by Delta Sharing where no
+  party exposes raw data. GA on AWS, Azure, and GCP. Supports multi-party rooms (up to 10 orgs),
+  in-place privacy-centric identity resolution (link entities without exposing raw PII to a
+  third party), and self-run notebooks (collaborators run their own notebooks with explicit
+  approval). Best fit when raw-data exposure is not acceptable, especially PII + external.
+- **Databricks Marketplace** — an open platform to publish data and AI-asset products to many or
+  unknown consumers via Delta Sharing, with live no-copy access. Choose it over per-recipient
+  RECIPIENTs for broad audiences or a listing/monetization path.
+- **AI-asset sharing (OpenSharing)** — share models, agents/Agent Skills, and unstructured files
+  zero-copy over the open protocol; **Genie Agent Sharing (Beta)** shares conversational,
+  natural-language access to data instead of raw tables.
+- **OIDC Token Federation (GA)** — share with non-Databricks recipients who authenticate via
+  their own IdP (Azure Entra ID, Okta, etc.) instead of long-lived tokens.
+- **Delta Sharing Network Gateway (Public Preview)** — lets recipients access the source live
+  with minimal manual firewall/network configuration (customer-managed S3/ADLS or Databricks
+  default storage).
+
+### Apache Iceberg v3 — GA on Unity Catalog
+Source: Databricks, "The next era of the open lakehouse: Apache Iceberg™ v3" and "Advancing
+Apache Iceberg on Databricks: Iceberg v3 GA, Open Sharing, and Unified Governance"
+(https://www.databricks.com/blog/unity-catalog-and-next-era-apache-icebergtm). Content was
+rephrased for compliance with licensing restrictions.
+
+Iceberg v3 features are native on Unity Catalog managed, foreign, and UniForm-enabled tables,
+and matter for *what format to share*:
+- **Row lineage** — every row carries a permanent row ID and a sequence number marking when it
+  last changed, so downstream consumers can identify changed rows without full scans.
+- **Deletion vectors** — logical deletes tracked in lightweight delete files instead of
+  rewriting Parquet, making change application markedly faster than copy-on-write.
+- **VARIANT** — a native semi-structured column type that stores logs/API/clickstream/IoT
+  payloads alongside relational columns in one table, queryable with standard SQL and with no
+  schema migration when new fields appear.
+- **UniForm + v3** — write once to Delta and read as Iceberg from Snowflake, BigQuery, Redshift,
+  Athena, Trino, or any Iceberg engine, now without giving up Delta's performance features.
+
+**How this affects recommendations (Decision 1c):**
+- Cross-engine CDC to a non-Databricks consumer → recommend **managed Iceberg v3** (row lineage +
+  deletion vectors) rather than relying on Delta `WITH HISTORY`.
+- Semi-structured data → recommend **VARIANT** so the payload ships in one governed table.
+- Delta source + Iceberg-reading consumer (e.g. Snowflake, Trino) → recommend **UniForm** to
+  avoid a replication pipeline.
 
 ## MCP Config Placeholders
 
