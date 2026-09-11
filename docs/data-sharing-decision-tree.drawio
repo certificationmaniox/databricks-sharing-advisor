@@ -1,0 +1,176 @@
+<mxfile host="drawio-jsapi" modified="2026-09-11T05:10:38.697Z" agent="DrawioJSAPI/1.0.0" version="1.0.0">
+  <diagram id="diagram-1" name="Data Sharing Decision Tree">
+  <mxGraphModel dx="1426" dy="798" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850">
+    <root>
+      <mxCell id="0" />
+      <mxCell id="1" parent="0" />
+      <mxCell id="start" value="Start:
+Data-sharing scenario" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1f2937;fontColor=#ffffff;strokeColor=#111827;fontSize=13;fontStyle=1" vertex="1" parent="1">
+        <mxGeometry x="360" y="40" width="200" height="50" as="geometry" />
+      </mxCell>
+      <mxCell id="banner0" value="STEP 0 — COLLABORATION MODALITY (decide first)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;fontColor=#1e3a8a;fontStyle=1;fontSize=11" vertex="1" parent="1">
+        <mxGeometry x="40" y="120" width="300" height="30" as="geometry" />
+      </mxCell>
+      <mxCell id="d_ai" value="Sharing a model, agent,
+or unstructured files?
+(or want NL Q&amp;A?)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#78350f;fontSize=12" vertex="1" parent="1">
+        <mxGeometry x="360" y="160" width="200" height="90" as="geometry" />
+      </mxCell>
+      <mxCell id="o_ai" value="AI-ASSET SHARING
+(open protocol)
++ run Step 1 for its tables" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#14532d;fontSize=12;fontStyle=1" vertex="1" parent="1">
+        <mxGeometry x="680" y="175" width="220" height="60" as="geometry" />
+      </mxCell>
+      <mxCell id="d_clean" value="Must NO party expose
+raw rows? (joint analysis;
+sensitive + external)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#78350f;fontSize=12" vertex="1" parent="1">
+        <mxGeometry x="360" y="290" width="200" height="90" as="geometry" />
+      </mxCell>
+      <mxCell id="o_clean" value="CLEAN ROOM
+(privacy-centric
+collaboration)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#14532d;fontSize=12;fontStyle=1" vertex="1" parent="1">
+        <mxGeometry x="680" y="305" width="220" height="60" as="geometry" />
+      </mxCell>
+      <mxCell id="d_market" value="Publish to many /
+unknown consumers,
+or want a listing?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#78350f;fontSize=12" vertex="1" parent="1">
+        <mxGeometry x="360" y="420" width="200" height="90" as="geometry" />
+      </mxCell>
+      <mxCell id="o_market" value="MARKETPLACE
+(broad publishing
+over open protocol)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#14532d;fontSize=12;fontStyle=1" vertex="1" parent="1">
+        <mxGeometry x="680" y="435" width="220" height="60" as="geometry" />
+      </mxCell>
+      <mxCell id="banner1" value="STEP 1 — PROTOCOL (direct table sharing; first match wins)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;fontColor=#1e3a8a;fontStyle=1;fontSize=11" vertex="1" parent="1">
+        <mxGeometry x="40" y="540" width="300" height="30" as="geometry" />
+      </mxCell>
+      <mxCell id="d_rw" value="Need read-write
+access?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#78350f;fontSize=12" vertex="1" parent="1">
+        <mxGeometry x="360" y="580" width="200" height="80" as="geometry" />
+      </mxCell>
+      <mxCell id="o_rw" value="SHARED OBJECT-STORE
+LOCATION (IAM roles)
+or managed-Iceberg writes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#14532d;fontSize=12;fontStyle=1" vertex="1" parent="1">
+        <mxGeometry x="680" y="593" width="220" height="60" as="geometry" />
+      </mxCell>
+      <mxCell id="d_meta" value="Same metastore?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#78350f;fontSize=12" vertex="1" parent="1">
+        <mxGeometry x="360" y="700" width="200" height="80" as="geometry" />
+      </mxCell>
+      <mxCell id="o_meta" value="DIRECT GRANT +
+cross-catalog views
+(zero copy, live)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#14532d;fontSize=12;fontStyle=1" vertex="1" parent="1">
+        <mxGeometry x="680" y="713" width="220" height="60" as="geometry" />
+      </mxCell>
+      <mxCell id="d_jdbc" value="Wants live SQL over
+JDBC/ODBC?
+(BI / app / dbt)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#78350f;fontSize=12" vertex="1" parent="1">
+        <mxGeometry x="360" y="820" width="200" height="80" as="geometry" />
+      </mxCell>
+      <mxCell id="o_jdbc" value="JDBC/ODBC over a
+SQL WAREHOUSE
+(provider pays compute)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#14532d;fontSize=12;fontStyle=1" vertex="1" parent="1">
+        <mxGeometry x="680" y="833" width="220" height="60" as="geometry" />
+      </mxCell>
+      <mxCell id="d_ice" value="Iceberg engine, OR
+tables are
+Iceberg / UniForm?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#78350f;fontSize=12" vertex="1" parent="1">
+        <mxGeometry x="360" y="940" width="200" height="80" as="geometry" />
+      </mxCell>
+      <mxCell id="o_ice" value="ICEBERG REST SHARING
+(live, zero-copy,
+central governance)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#14532d;fontSize=12;fontStyle=1" vertex="1" parent="1">
+        <mxGeometry x="680" y="953" width="220" height="60" as="geometry" />
+      </mxCell>
+      <mxCell id="d_plat" value="Another workspace
+on the same platform?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#78350f;fontSize=12" vertex="1" parent="1">
+        <mxGeometry x="360" y="1060" width="200" height="80" as="geometry" />
+      </mxCell>
+      <mxCell id="o_plat" value="NATIVE PLATFORM-TO-
+PLATFORM SHARING" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#14532d;fontSize=12;fontStyle=1" vertex="1" parent="1">
+        <mxGeometry x="680" y="1073" width="220" height="60" as="geometry" />
+      </mxCell>
+      <mxCell id="o_open" value="OPEN-PROTOCOL SHARING
+warehouse path · BI connector ·
+Python/Spark client · dbt/other" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#14532d;fontSize=12;fontStyle=1" vertex="1" parent="1">
+        <mxGeometry x="360" y="1180" width="300" height="70" as="geometry" />
+      </mxCell>
+      <mxCell id="banner1b" value="STEP 1b — SHARED OBJECT   |   STEP 1c — SHARED FORMAT" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;fontColor=#1e3a8a;fontStyle=1;fontSize=11" vertex="1" parent="1">
+        <mxGeometry x="40" y="1290" width="420" height="30" as="geometry" />
+      </mxCell>
+      <mxCell id="ref1b" value="Refine the SHARED OBJECT:
+• Real-time / near real-time → STREAMING TABLE
+• Only aggregates/summaries → MATERIALIZED VIEW
+• Otherwise → TABLE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;fontColor=#4c1d95;fontSize=11;align=left;spacingLeft=10;verticalAlign=middle" vertex="1" parent="1">
+        <mxGeometry x="40" y="1340" width="400" height="90" as="geometry" />
+      </mxCell>
+      <mxCell id="ref1c" value="Refine the SHARED FORMAT:
+• Cross-engine CDC → managed ICEBERG v3 (row lineage + deletion vectors)
+• Semi-structured data → ICEBERG v3 with VARIANT
+• Delta source + Iceberg reader → UNIFORM
+• Otherwise → keep source format" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;fontColor=#4c1d95;fontSize=11;align=left;spacingLeft=10;verticalAlign=middle" vertex="1" parent="1">
+        <mxGeometry x="480" y="1340" width="420" height="90" as="geometry" />
+      </mxCell>
+      <mxCell id="crosscut" value="CROSS-CUTTING (any external, off-platform recipient):  federated identity (own IdP) · managed network gateway · cross-cloud connectivity + auto-replication to cut egress · cross-domain sharing for regulated boundaries" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1f5f9;strokeColor=#64748b;fontColor=#0f172a;fontSize=11;align=left;spacingLeft=10;verticalAlign=middle" vertex="1" parent="1">
+        <mxGeometry x="40" y="1470" width="860" height="60" as="geometry" />
+      </mxCell>
+      <mxCell id="2" value="" style="endArrow=block;html=1;strokeColor=#111827;strokeWidth=2;rounded=1" edge="1" parent="1" source="start" target="d_ai">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="3" value="Yes" style="endArrow=block;html=1;strokeColor=#16a34a;strokeWidth=2;fontColor=#14532d;fontStyle=1;rounded=1" edge="1" parent="1" source="d_ai" target="o_ai">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="4" value="No" style="endArrow=block;html=1;strokeColor=#6b7280;strokeWidth=2;fontColor=#374151;rounded=1" edge="1" parent="1" source="d_ai" target="d_clean">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="5" value="Yes" style="endArrow=block;html=1;strokeColor=#16a34a;strokeWidth=2;fontColor=#14532d;fontStyle=1;rounded=1" edge="1" parent="1" source="d_clean" target="o_clean">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="6" value="No" style="endArrow=block;html=1;strokeColor=#6b7280;strokeWidth=2;fontColor=#374151;rounded=1" edge="1" parent="1" source="d_clean" target="d_market">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="7" value="Yes" style="endArrow=block;html=1;strokeColor=#16a34a;strokeWidth=2;fontColor=#14532d;fontStyle=1;rounded=1" edge="1" parent="1" source="d_market" target="o_market">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="8" value="No (direct table sharing)" style="endArrow=block;html=1;strokeColor=#6b7280;strokeWidth=2;fontColor=#374151;rounded=1" edge="1" parent="1" source="d_market" target="d_rw">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="9" value="Yes" style="endArrow=block;html=1;strokeColor=#16a34a;strokeWidth=2;fontColor=#14532d;fontStyle=1;rounded=1" edge="1" parent="1" source="d_rw" target="o_rw">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="10" value="No" style="endArrow=block;html=1;strokeColor=#6b7280;strokeWidth=2;fontColor=#374151;rounded=1" edge="1" parent="1" source="d_rw" target="d_meta">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="11" value="Yes" style="endArrow=block;html=1;strokeColor=#16a34a;strokeWidth=2;fontColor=#14532d;fontStyle=1;rounded=1" edge="1" parent="1" source="d_meta" target="o_meta">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="12" value="No" style="endArrow=block;html=1;strokeColor=#6b7280;strokeWidth=2;fontColor=#374151;rounded=1" edge="1" parent="1" source="d_meta" target="d_jdbc">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="13" value="Yes" style="endArrow=block;html=1;strokeColor=#16a34a;strokeWidth=2;fontColor=#14532d;fontStyle=1;rounded=1" edge="1" parent="1" source="d_jdbc" target="o_jdbc">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="14" value="No" style="endArrow=block;html=1;strokeColor=#6b7280;strokeWidth=2;fontColor=#374151;rounded=1" edge="1" parent="1" source="d_jdbc" target="d_ice">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="15" value="Yes" style="endArrow=block;html=1;strokeColor=#16a34a;strokeWidth=2;fontColor=#14532d;fontStyle=1;rounded=1" edge="1" parent="1" source="d_ice" target="o_ice">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="16" value="No" style="endArrow=block;html=1;strokeColor=#6b7280;strokeWidth=2;fontColor=#374151;rounded=1" edge="1" parent="1" source="d_ice" target="d_plat">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="17" value="Yes" style="endArrow=block;html=1;strokeColor=#16a34a;strokeWidth=2;fontColor=#14532d;fontStyle=1;rounded=1" edge="1" parent="1" source="d_plat" target="o_plat">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="18" value="No" style="endArrow=block;html=1;strokeColor=#6b7280;strokeWidth=2;fontColor=#374151;rounded=1" edge="1" parent="1" source="d_plat" target="o_open">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="19" value="" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;dashed=1;rounded=1" edge="1" parent="1" source="o_open" target="ref1b">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+      <mxCell id="20" value="" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;dashed=1;rounded=1" edge="1" parent="1" source="o_open" target="ref1c">
+        <mxGeometry relative="1" as="geometry" />
+      </mxCell>
+    </root>
+  </mxGraphModel>
+  </diagram>
+</mxfile>

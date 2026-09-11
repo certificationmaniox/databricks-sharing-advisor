@@ -1,0 +1,369 @@
+<p>Organizations running Databricks on AWS routinely exchange data across teams, accounts, and platforms. A finance team wants a revenue dashboard, a partner wants a product feed, a data science team wants to build models on gold tables, and downstream systems on Snowflake, Power BI, or a custom application need governed access. Often the direction reverses, and the lakehouse must instead consume data from an external source.</p>
+<p>The gap between "just share the data" and a safe, cost-efficient production rollout comes down to a small set of decisions: whether the two sides share a Unity Catalog metastore, AWS account, and Region; the consumer platform; whether write access is required; the data classification; the freshness requirement; and, most fundamentally, whether you are the producer sharing data out or the consumer pulling data in. Get those right and the pattern is obvious. Miss one and you are back to unnecessary cross-region egress, sensitive data on the wrong path, or brittle copy pipelines that are expensive to operate.</p>
+<p>This guide maps those variables to a recommended architecture, explains the reasoning, and provides copy-paste implementation code for both the producer and consumer sides of 16 patterns. All examples use a fictitious setup (<code>demo_sales</code> catalog, <code>gold_products</code> schema) and placeholder names that you replace with your own.</p>
+
+<h2>Section 1: Direction &mdash; Are You the Producer or the Consumer?</h2>
+<p>The single most useful distinction is direction. A <strong>producer</strong> exposes data to consumers wherever they run; a <strong>consumer</strong> brings external data into its own lakehouse. The two use different toolkits, so establishing direction first narrows the options quickly.</p>
+<p>Two rules underpin every producer decision:</p>
+<ul>
+<li><strong>Delta Sharing is read-only.</strong> The moment someone needs to write, you are no longer sharing &mdash; you are running shared storage with carefully scoped IAM roles.</li>
+<li><strong>JDBC/ODBC and the REST API bill the producer, not the consumer.</strong> They run on your SQL Warehouse, so use Serverless with auto-stop and watch the compute. That is the price of zero-copy, always-fresh access.</li>
+</ul>
+
+<h2>Section 2: Produce &mdash; Which Pattern Shares Your Data Out?</h2>
+<p>When the lakehouse is sharing data out, the decision maps to one of nine patterns.</p>
+<table><tbody>
+<tr><th>When&hellip;</th><th>Recommended architecture</th><th>Why</th></tr>
+<tr><td>You need <strong>read-write</strong> access</td><td>Shared S3 External Location (IAM roles)</td><td>Delta Sharing is read-only, so writes force a shared-storage design</td></tr>
+<tr><td>Both sides are in the <strong>same metastore</strong></td><td>Direct GRANT + Cross-Catalog Views</td><td>Zero copy, zero latency, zero extra cost</td></tr>
+<tr><td><strong>Different metastores</strong>, both on Databricks</td><td>Databricks-to-Databricks (D2D) Sharing</td><td>Native catalog integration, no token juggling</td></tr>
+<tr><td>Consumer is on <strong>Snowflake</strong></td><td>Delta Sharing &rarr; Snowflake</td><td>Tables appear as native Snowflake external tables</td></tr>
+<tr><td>Consumer wants <strong>native Iceberg</strong> (Snowflake, Trino, Flink, Athena)</td><td>Delta UniForm + UC Iceberg REST</td><td>One manifest serves any Iceberg engine &mdash; zero-copy, UC-governed</td></tr>
+<tr><td>Consumer is on <strong>Power BI</strong></td><td>Delta Sharing &rarr; Power BI</td><td>Import or DirectQuery via the built-in connector</td></tr>
+<tr><td>Consumer uses <strong>Python / Spark / other</strong></td><td>Delta Sharing (Open Protocol)</td><td>Works with any Delta Sharing client</td></tr>
+<tr><td>Consumer is a BI tool or app needing <strong>live SQL</strong></td><td>JDBC/ODBC via SQL Warehouse</td><td>Interactive queries through the standard driver &mdash; no extract to maintain</td></tr>
+<tr><td>Consumer is an application calling over <strong>HTTP</strong></td><td>SQL Statement Execution REST API</td><td>Programmatic access with no driver install</td></tr>
+</tbody></table>
+<p>These patterns collapse into two shapes:</p>
+<ul>
+<li><strong>Bulk file access</strong> &mdash; Delta Sharing (all flavors), Delta UniForm + Iceberg REST, and shared S3 hand the other side the underlying Parquet/Delta files, read via short-lived pre-signed URLs. The provider spends zero compute.</li>
+<li><strong>Live query</strong> &mdash; JDBC/ODBC and the REST API run queries through a SQL Warehouse. The consumer always sees current data and needs no copy, but the provider pays the compute for every query.</li>
+</ul>
+<p>For the bulk-file shape when the consumer is not on Databricks there is a protocol choice. Delta Sharing is Databricks' own protocol; Delta UniForm + the Unity Catalog Iceberg REST catalog publishes an Apache Iceberg metadata view over the same Parquet, so any Iceberg-native engine (Snowflake, Trino, Flink, Athena) reads it as a native Iceberg table. <strong>Best for:</strong> reach for UniForm when the consumer wants open-table-format interop or one manifest to serve many engines; reach for Delta Sharing when they are happy speaking the Delta Sharing protocol. Both are zero-copy and UC-governed.</p>
+
+<h2>Section 3: Consume &mdash; Which Pattern Brings Data In?</h2>
+<p>When your lakehouse is the consumer, you have five options. In nearly all cases, reading the data in place is preferable to copying it in.</p>
+<table><tbody>
+<tr><th>You're receiving from&hellip;</th><th>Recommended architecture</th><th>Why</th></tr>
+<tr><td>Another Databricks account/metastore</td><td>Mount the D2D share as a catalog</td><td><code>CREATE CATALOG &hellip; USING SHARE</code> &mdash; the data stays in the provider's S3, you query it live</td></tr>
+<tr><td>Snowflake, Postgres, Redshift, MySQL, BigQuery</td><td>Lakehouse Federation</td><td>Register the source as a foreign catalog and query it in place &mdash; no ingestion pipeline</td></tr>
+<tr><td>Another catalog &mdash; AWS Glue / Hive Metastore</td><td>Catalog Federation</td><td>Federate the whole metastore into UC as a foreign catalog; read Glue-registered tables via the three-level namespace</td></tr>
+<tr><td>A partner's S3 bucket (Delta/Parquet files)</td><td>External Location + read-only IAM role</td><td>Register their path in Unity Catalog and read it directly</td></tr>
+<tr><td>An open Delta Sharing provider</td><td>Delta Sharing client</td><td>Point Spark or delta-sharing at their <code>.share</code> profile</td></tr>
+</tbody></table>
+<p>Federation is often the most valuable option. When a partner runs a Snowflake or PostgreSQL warehouse, the common instinct is to build an ingestion pipeline: schedule a job, land the data in bronze, reconcile schema drift, and operate it indefinitely. Federation avoids that entirely &mdash; you register the external database as a foreign catalog in Unity Catalog and query its tables live, in place, governed by the same permissions as your own tables.</p>
+<p>Federation comes in two flavors:</p>
+<ul>
+<li><strong>Lakehouse Federation</strong> connects to a query engine (Snowflake, Postgres, Redshift, BigQuery) over a JDBC-style CONNECTION and pushes queries down to it.</li>
+<li><strong>Catalog Federation</strong> connects to a metastore &mdash; most commonly an AWS Glue Data Catalog or Hive Metastore &mdash; and surfaces every registered table under a single UC foreign catalog.</li>
+</ul>
+<p>The consumer's default should be "query in place," not "copy in." D2D shares, Lakehouse Federation, and external-location reads all leave the data where it lives. Introduce a copy-based ingestion pipeline only when you need historical snapshots or when query volume makes live federation too chatty. Ingestion is the exception you justify, not the reflex you start with.</p>
+
+<h2>Section 4: Secure &mdash; How Do I Keep Sensitive Data on the Right Path?</h2>
+<p>Picking the pattern is only half the job. Turning a whiteboard box into a safe production rollout is the other half, and it is where most designs quietly go wrong.</p>
+<h3>Layer 1: Prerequisites and access as code</h3>
+<p>Do account-level groups exist yet? Is the consumer a service principal that needs OAuth credentials &mdash; using OAuth machine-to-machine rather than a long-lived personal token? Is the consumer external, requiring a Unity Catalog RECIPIENT and a securely transmitted activation link? In a governed estate, access is as-code: open a Terraform PR to add the consumer's <strong>service account</strong> (never an individual) to the data product's consumer group; a compliance/classification gate and the domain owner's approval must pass before it goes live. Verify the metastore relationship per consumer &mdash; run <code>SELECT current_metastore()</code> on both sides rather than assuming from the account boundary.</p>
+<h3>Layer 2: Environment matching</h3>
+<p>Prod talks to Prod, QA to QA, Dev to Dev. Delta Sharing recipients and IP allowlists are environment-scoped, and cross-environment access (Prod&harr;QA) is blocked by design, so a lower environment can never reach production data, whether over the sharing path or the JDBC fallback.</p>
+<h3>Layer 3: Security that scales with sensitivity</h3>
+<p>PII calls for dynamic views with column masking (<code>is_account_group_member</code>) and tagged PII columns. Confidential or restricted data adds audit logging, PrivateLink (no public internet), and a mandatory security-team review. For external recipients, harden the bearer token: set an expiration, rotate on a schedule, and restrict access with an IP allowlist. <strong>One hard line:</strong> PII + external consumer = high risk. Share only aggregated or anonymized data, never raw PII tables. When two parties genuinely need to compute on combined sensitive data, that is a job for a Clean Room, not a share.</p>
+<h3>Layer 4: Cost, before the invoice</h3>
+<p>Cross-region sharing incurs S3 egress (typically ~$0.01&ndash;0.02/GB depending on the region pair); at high volume, replicate to the consumer's region instead of paying egress on every read. Remember which shape you picked: Delta Sharing reads cost the provider zero compute, while JDBC/ODBC and the REST API bill the provider's SQL Warehouse per query. For large API result sets, use the <code>EXTERNAL_LINKS</code> disposition (pre-signed URLs) rather than inlining megabytes of JSON.</p>
+
+<h2>Section 5: Implement &mdash; What Does the Code Look Like?</h2>
+<p>Once the pattern is chosen, the implementation is straightforward. For Databricks-to-Databricks sharing, the producer side is four statements:</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- PROVIDER SIDE
+CREATE SHARE IF NOT EXISTS finance_share
+  COMMENT 'Data products shared with the Finance team';
+ALTER SHARE finance_share ADD TABLE demo_sales.gold_products.revenue_dashboard;
+CREATE RECIPIENT IF NOT EXISTS finance_team
+  USING ID '<CONSUMER_METASTORE_SHARING_ID>';
+GRANT SELECT ON SHARE finance_share TO RECIPIENT finance_team;]]></ac:plain-text-body></ac:structured-macro>
+<p>The consumer mounts it as a catalog and queries it like any local table:</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- CONSUMER SIDE
+CREATE CATALOG IF NOT EXISTS sales_shared
+  USING SHARE demo_provider.finance_share;
+SELECT * FROM sales_shared.gold_products.revenue_dashboard LIMIT 10;]]></ac:plain-text-body></ac:structured-macro>
+<p>Federating a Snowflake source you consume is just as short:</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- CONSUMER SIDE -- query Snowflake live, no ingestion
+CREATE CONNECTION partner_snowflake TYPE snowflake
+  OPTIONS (host '<account>.snowflakecomputing.com', port '443',
+           user '<user>', password secret('scope','key'));
+CREATE FOREIGN CATALOG partner_sales USING CONNECTION partner_snowflake
+  OPTIONS (database 'SALES_DB');
+SELECT * FROM partner_sales.public.orders LIMIT 10; -- live, in place]]></ac:plain-text-body></ac:structured-macro>
+<p>Each producer pattern has an equally compact recipe. The full set of all 16 patterns, with both-sides code for each, is in the appendix.</p>
+
+<h2>Section 6: Decide &mdash; The One-Page Cheat Sheet</h2>
+<table><tbody>
+<tr><th>#</th><th>Pattern</th><th>Direction</th><th>Zero-copy?</th><th>Who pays compute</th><th>Freshness</th><th>Governed by UC</th></tr>
+<tr><td>1</td><td>Direct GRANT + views</td><td>Producer</td><td>Yes</td><td>consumer</td><td>live</td><td>Yes</td></tr>
+<tr><td>2</td><td>D2D Sharing</td><td>Producer</td><td>Yes</td><td>consumer</td><td>live</td><td>Yes</td></tr>
+<tr><td>3</td><td>Delta Sharing &rarr; Snowflake</td><td>Producer</td><td>Yes</td><td>consumer</td><td>on read</td><td>Yes</td></tr>
+<tr><td>4</td><td>UniForm + Iceberg REST</td><td>Producer</td><td>Yes</td><td>consumer</td><td>async (REFRESH)</td><td>Yes</td></tr>
+<tr><td>5</td><td>Delta Sharing &rarr; Power BI</td><td>Producer</td><td>Yes</td><td>consumer</td><td>refresh/live</td><td>Yes</td></tr>
+<tr><td>6</td><td>Delta Sharing (open) &rarr; Python</td><td>Producer</td><td>Yes</td><td>consumer</td><td>on read</td><td>Yes</td></tr>
+<tr><td>7</td><td>Shared S3 External Location</td><td>Producer</td><td>Yes (shared)</td><td>each side</td><td>live</td><td>Yes (both)</td></tr>
+<tr><td>8</td><td>JDBC/ODBC via SQL Warehouse</td><td>Producer</td><td>n/a (live query)</td><td>producer</td><td>live</td><td>Yes</td></tr>
+<tr><td>9</td><td>SQL Statement Execution API</td><td>Producer</td><td>n/a (live query)</td><td>producer</td><td>live</td><td>Yes</td></tr>
+<tr><td>10</td><td>Lakehouse Federation</td><td>Consumer</td><td>Yes</td><td>source engine</td><td>live</td><td>Yes</td></tr>
+<tr><td>11</td><td>Catalog Federation (Glue/Hive)</td><td>Consumer</td><td>Yes</td><td>consumer</td><td>live</td><td>Yes</td></tr>
+<tr><td>12</td><td>External Location (partner S3)</td><td>Consumer</td><td>Yes</td><td>consumer</td><td>live</td><td>Yes</td></tr>
+<tr><td>13</td><td>Consume open Delta Sharing</td><td>Consumer</td><td>Yes</td><td>consumer</td><td>on read</td><td>Yes</td></tr>
+<tr><td>14</td><td>API Gateway / OData facade</td><td>Producer</td><td>n/a (live query)</td><td>producer</td><td>live</td><td>Yes</td></tr>
+<tr><td>15</td><td>Provider PUSH &rarr; datamart</td><td>Producer</td><td>No (copy)</td><td>producer</td><td>batch</td><td>re-applied</td></tr>
+<tr><td>16</td><td>Online Tables / Model Serving</td><td>Producer</td><td>n/a (serving)</td><td>producer</td><td>sub-second</td><td>Yes</td></tr>
+</tbody></table>
+<p><strong>Rules of thumb:</strong> Read-write &rarr; #7. Non-Databricks consumer who wants open table format &rarr; #4. Live BI/app &rarr; #8/#9 (you pay the compute). App over HTTP with no Databricks creds &rarr; #14 (gateway facade). Consumer can't pull &rarr; #15 (push, last resort). Sub-second per-row lookups &rarr; #16 (not a warehouse/sharing job). Pulling data in &rarr; query in place (#10&ndash;12) before you ever build ingestion.</p>
+<p><strong>Escalation ladder</strong> (zero-copy and UC-governed first): Direct GRANT &rarr; D2D Delta Sharing &rarr; Lakehouse/Catalog Federation &middot; UniForm Iceberg REST &rarr; JDBC / API (+ gateway facade) &rarr; open Delta Sharing &rarr; push/copy. DEEP CLONE is a writable-snapshot pattern, not an access rung &mdash; it drops governance, so re-tag and re-mask after cloning.</p>
+
+<h2>Section 7: Troubleshoot &mdash; Why Doesn't It Work?</h2>
+<p>Most sharing "it doesn't work" tickets are one of a handful of recurring causes. Check the symptom before you deep-dive &mdash; it usually points straight at the fix.</p>
+<h3>Access and permissions</h3>
+<table><tbody>
+<tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+<tr><td><code>PERMISSION_DENIED</code> on SELECT</td><td>Group membership not synced via SCIM, or querying a non-output-port table</td><td>Confirm SCIM sync and that the service account is in the consumer group; only query gold output ports</td></tr>
+<tr><td>403 on file read despite SELECT</td><td>Missing <code>EXTERNAL USE LOCATION</code> on the external location</td><td>Grant <code>EXTERNAL USE LOCATION</code> to the consumer group (excluded from ALL PRIVILEGES)</td></tr>
+<tr><td>Grant looks correct but can't traverse</td><td>Missing a rung of USE CATALOG &rarr; USE SCHEMA &rarr; SELECT</td><td>Grant all three, to the group (never an individual), at the narrowest object</td></tr>
+<tr><td>Recipient can't mount the share</td><td>Wrong sharing ID</td><td>Use <code>SELECT current_metastore()</code> (the metastore UUID, not a workspace/account ID)</td></tr>
+</tbody></table>
+<h3>Compute and connectivity</h3>
+<table><tbody>
+<tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+<tr><td>SQL Warehouse unavailable</td><td>Warehouse stopped or not provisioned</td><td>Start it (auto-starts ~5&ndash;10s cold serverless)</td></tr>
+<tr><td>JDBC times out from consumer</td><td>No network route (no PrivateLink)</td><td>Configure PrivateLink or VPC peering</td></tr>
+<tr><td><code>401 / invalid_client</code> on connect</td><td>Bad/expired SP secret or wrong OAuth URI</td><td>Rotate secret; verify <code>OAUTH_TOKEN_URI</code>; use OAuth M2M</td></tr>
+<tr><td>Cross-region read is slow</td><td>Different regions</td><td>Expect ~$0.01&ndash;0.02/GB egress; replicate hot data or filter the share</td></tr>
+</tbody></table>
+<h3>Data correctness and governance</h3>
+<table><tbody>
+<tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+<tr><td>Stale data after upstream change</td><td>UniForm metadata is async; no REFRESH</td><td>Run <code>ALTER ICEBERG TABLE &hellip; REFRESH</code>; schedule to match SLA</td></tr>
+<tr><td>No <code>iceberg.metadata.location</code></td><td>UniForm not enabled, or deletion vectors ON</td><td>Set <code>enableIcebergCompatV2=true</code>, <code>enableDeletionVectors=false</code>; OPTIMIZE</td></tr>
+<tr><td>Masks not applied on consumer</td><td>Used open-protocol sharing or DEEP CLONE</td><td>Use D2D or Federation (both enforce masks), or pre-mask a view</td></tr>
+<tr><td>PII appears where it shouldn't</td><td>Raw sensitive data on wrong path</td><td>Share only anonymized <code>contains_pii=false</code> gold; sensitive compute &rarr; Clean Rooms</td></tr>
+</tbody></table>
+<p><strong>Triage shortcut:</strong> Nine times out of ten it is one of three things &mdash; (1) SCIM group membership not synced, (2) wrong environment/region/workspace, or (3) a warehouse that needs starting/provisioning. Check those first.</p>
+
+<h2>Conclusion: Start Sharing</h2>
+<p>Choosing how to share data on Databricks on AWS is fundamentally a decision tree: a small set of inputs &mdash; direction, metastore relationship, consumer platform, access mode, data classification, and freshness &mdash; determines the right architecture. To apply the framework:</p>
+<ol>
+<li>Start from the decision tree to identify your pattern.</li>
+<li>Use the one-page cheat sheet to confirm its trade-offs.</li>
+<li>Copy the corresponding provider and consumer code from the appendix, replacing the placeholder names with your own.</li>
+</ol>
+<p>In every case, prefer the highest zero-copy, Unity Catalog&ndash;governed option before resorting to a copy-based pipeline.</p>
+
+<h2>Appendix: All 16 Patterns &mdash; Both Sides, End to End</h2>
+<p>Copy-paste recipes for every pattern. The running example uses <code>demo_sales</code> catalog, <code>gold_products</code> schema, sharing with a finance team or an external partner. Replace the <code>&lt;&hellip;&gt;</code> placeholders with your own values.</p>
+
+<h3>Pattern 1 &mdash; Direct GRANT + Cross-Catalog Views (Same Metastore)</h3>
+<p><strong>When to use:</strong> Producer and consumer live in the same Unity Catalog metastore. Simplest possible path &mdash; zero copy, zero cost.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- PRODUCER
+GRANT USE CATALOG ON CATALOG demo_sales TO `finance_team`;
+GRANT USE SCHEMA ON SCHEMA demo_sales.gold_products TO `finance_team`;
+GRANT SELECT ON SCHEMA demo_sales.gold_products TO `finance_team`;
+
+-- CONSUMER
+CREATE CATALOG IF NOT EXISTS finance_catalog;
+CREATE OR REPLACE VIEW finance_catalog.shared.revenue AS
+  SELECT * FROM demo_sales.gold_products.revenue_dashboard;]]></ac:plain-text-body></ac:structured-macro>
+<p>Same S3, live reads, zero cost. Use dynamic views (<code>is_account_group_member</code>) for masking.</p>
+
+<h3>Pattern 2 &mdash; Databricks-to-Databricks (D2D) Sharing (Different Metastores)</h3>
+<p><strong>When to use:</strong> Both sides are on Databricks but in different metastores/accounts. Native, token-free, live.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- PRODUCER
+CREATE SHARE IF NOT EXISTS finance_share;
+ALTER SHARE finance_share ADD TABLE demo_sales.gold_products.revenue_dashboard;
+CREATE RECIPIENT IF NOT EXISTS subsidiary USING ID '<CONSUMER_METASTORE_SHARING_ID>';
+GRANT SELECT ON SHARE finance_share TO RECIPIENT subsidiary;
+
+-- CONSUMER
+SELECT current_metastore() AS my_sharing_id; -- send this to the provider
+CREATE PROVIDER IF NOT EXISTS demo_provider USING ID '<PROVIDER_METASTORE_SHARING_ID>';
+CREATE CATALOG IF NOT EXISTS sales_shared USING SHARE demo_provider.finance_share;
+SELECT * FROM sales_shared.gold_products.revenue_dashboard LIMIT 10;]]></ac:plain-text-body></ac:structured-macro>
+<p>Metastore-to-metastore auth, no tokens. Cross-region means S3 egress (~$0.01&ndash;0.02/GB). Add <code>WITH HISTORY</code> to share CDC.</p>
+
+<h3>Pattern 3 &mdash; Delta Sharing to Snowflake</h3>
+<p><strong>When to use:</strong> The consumer runs Snowflake and speaks the Delta Sharing protocol (tables appear as external tables).</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- PRODUCER
+CREATE SHARE IF NOT EXISTS snowflake_share;
+ALTER SHARE snowflake_share ADD TABLE demo_sales.gold_products.revenue_dashboard;
+CREATE RECIPIENT IF NOT EXISTS snowflake_partner;
+GRANT SELECT ON SHARE snowflake_share TO RECIPIENT snowflake_partner;
+DESCRIBE RECIPIENT snowflake_partner; -- returns the activation_link
+
+-- CONSUMER (Snowflake)
+CREATE OR REPLACE CATALOG INTEGRATION databricks_delta_share
+  CATALOG_SOURCE = DELTA_SHARING TABLE_FORMAT = DELTA ENABLED = TRUE;
+CREATE DATABASE sales_from_databricks
+  FROM DELTA_SHARING_SHARE PROVIDER = 'databricks_provider' SHARE = 'snowflake_share';
+SELECT * FROM sales_from_databricks.gold_products.revenue_dashboard;]]></ac:plain-text-body></ac:structured-macro>
+<p>Data stays in the provider's S3; Snowflake reads Parquet via pre-signed URLs. Harden the recipient with token expiration + IP allowlist.</p>
+
+<h3>Pattern 4 &mdash; Delta UniForm + Unity Catalog Iceberg REST to Any Iceberg Engine</h3>
+<p><strong>When to use:</strong> The consumer wants a native Apache Iceberg table (Snowflake, Trino, Flink, Athena), or you want one manifest to serve many engines.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- PRODUCER -- publish gold as Iceberg via UniForm
+ALTER TABLE demo_sales.gold_products.revenue_dashboard SET TBLPROPERTIES (
+  'delta.enableDeletionVectors' = 'false',
+  'delta.columnMapping.mode' = 'name',
+  'delta.enableIcebergCompatV2' = 'true',
+  'delta.universalFormat.enabledFormats' = 'iceberg');
+OPTIMIZE demo_sales.gold_products.revenue_dashboard;
+GRANT SELECT ON TABLE demo_sales.gold_products.revenue_dashboard TO `iceberg_readers`;
+GRANT EXTERNAL USE SCHEMA ON SCHEMA demo_sales.gold_products TO `iceberg_readers`;
+GRANT EXTERNAL USE LOCATION ON EXTERNAL LOCATION demo_gold_ext_loc TO `iceberg_readers`;
+
+-- CONSUMER (Snowflake) -- bind the UC Iceberg REST catalog
+CREATE CATALOG INTEGRATION uc_iceberg
+  CATALOG_SOURCE = ICEBERG_REST TABLE_FORMAT = ICEBERG
+  REST_CONFIG = (CATALOG_URI='https://<workspace-host>/api/2.1/unity-catalog/iceberg-rest',
+                 WAREHOUSE='demo_sales')
+  REST_AUTHENTICATION = (TYPE=OAUTH, OAUTH_CLIENT_ID='<service-account-id>',
+    OAUTH_CLIENT_SECRET='<secret>', OAUTH_TOKEN_URI='https://<workspace-host>/oidc/v1/token',
+    OAUTH_ALLOWED_SCOPES=('all-apis')) ENABLED = TRUE;
+CREATE ICEBERG TABLE revenue_dashboard
+  CATALOG='uc_iceberg' EXTERNAL_VOLUME='uc_ext_vol' CATALOG_TABLE_NAME='revenue_dashboard';
+ALTER ICEBERG TABLE revenue_dashboard REFRESH;]]></ac:plain-text-body></ac:structured-macro>
+<p>Same Parquet, read as native Iceberg &mdash; reusable by Trino/Flink/Athena too. Freshness is async: the consumer sees new rows only after REFRESH. <code>EXTERNAL USE LOCATION</code> is the key grant (excluded from ALL PRIVILEGES).</p>
+
+<h3>Pattern 5 &mdash; Delta Sharing to Power BI</h3>
+<p><strong>When to use:</strong> The consumer is a Power BI team wanting dashboards over your gold tables.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- PRODUCER
+CREATE SHARE IF NOT EXISTS powerbi_share;
+ALTER SHARE powerbi_share ADD TABLE demo_sales.gold_products.revenue_dashboard;
+CREATE RECIPIENT IF NOT EXISTS powerbi_consumer;
+GRANT SELECT ON SHARE powerbi_share TO RECIPIENT powerbi_consumer;]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Consumer (Power BI Desktop):</strong> Download the <code>.share</code> profile from the activation link, then Get Data &rarr; More&hellip; &rarr; Delta Sharing, paste the profile URL, select <code>revenue_dashboard</code>, choose Import (scheduled refresh) or DirectQuery (live), publish and set a daily refresh. Import = cheaper periodic snapshot; DirectQuery = live but heavier.</p>
+
+<h3>Pattern 6 &mdash; Delta Sharing (Open Protocol) to Python / Spark</h3>
+<p><strong>When to use:</strong> The consumer works in plain Python/Pandas or non-Databricks Spark and has no Databricks account.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">python</ac:parameter><ac:plain-text-body><![CDATA[-- PRODUCER (SQL)
+CREATE SHARE IF NOT EXISTS ds_share;
+ALTER SHARE ds_share ADD TABLE demo_sales.gold_products.customer_segments;
+CREATE RECIPIENT IF NOT EXISTS ds_partner;
+GRANT SELECT ON SHARE ds_share TO RECIPIENT ds_partner;
+
+# CONSUMER (Python)
+import delta_sharing
+PROFILE = "/path/to/config.share"
+df = delta_sharing.load_as_pandas(
+    f"{PROFILE}#ds_share.gold_products.customer_segments")]]></ac:plain-text-body></ac:structured-macro>
+<p>Provider spends zero compute; partner reads Parquet via pre-signed URLs &mdash; no Databricks account needed.</p>
+
+<h3>Pattern 7 &mdash; Shared S3 External Location (Read-Write)</h3>
+<p><strong>When to use:</strong> The consumer needs to write back (enrich, round-trip). Delta Sharing is read-only, so this is the only path.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- PRODUCER -- write side
+CREATE STORAGE CREDENTIAL provider_shared_cred
+  WITH (AWS_IAM_ROLE = 'arn:aws:iam::PROVIDER_ACCOUNT:role/write-role');
+CREATE EXTERNAL LOCATION shared_exchange
+  URL 's3://data-exchange/sales-to-finance/'
+  WITH (STORAGE CREDENTIAL provider_shared_cred);
+
+-- CONSUMER -- read/write side
+CREATE STORAGE CREDENTIAL consumer_shared_cred
+  WITH (AWS_IAM_ROLE = 'arn:aws:iam::CONSUMER_ACCOUNT:role/partner-rw-role');
+CREATE EXTERNAL LOCATION shared_exchange
+  URL 's3://data-exchange/sales-to-finance/'
+  WITH (STORAGE CREDENTIAL consumer_shared_cred);
+CREATE TABLE partner_catalog.shared.revenue
+  USING DELTA LOCATION 's3://data-exchange/sales-to-finance/revenue';]]></ac:plain-text-body></ac:structured-macro>
+<p>The only path that supports writes. The S3 bucket policy is the real allowlist; each side uses its own IAM role.</p>
+
+<h3>Pattern 8 &mdash; JDBC/ODBC via SQL Warehouse (Live BI)</h3>
+<p><strong>When to use:</strong> The consumer is a BI tool or app wanting live, interactive SQL through a standard driver &mdash; no extract to maintain.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">text</ac:parameter><ac:plain-text-body><![CDATA[-- PRODUCER
+GRANT SELECT ON SCHEMA demo_sales.gold_products TO `finance_sp`;
+-- Warehouse -> Permissions -> finance_sp = CAN USE; copy Server hostname + HTTP path
+
+-- CONSUMER -- JDBC URL
+jdbc:databricks://<host>:443;httpPath=/sql/1.0/warehouses/<id>;SSL=1;AuthMech=11;Auth_Flow=1]]></ac:plain-text-body></ac:structured-macro>
+<p>Unity Catalog enforces grants per query. Provider pays warehouse compute &mdash; use Serverless + auto-stop.</p>
+
+<h3>Pattern 9 &mdash; SQL Statement Execution REST API (App Integration)</h3>
+<p><strong>When to use:</strong> The consumer is an application that calls over HTTPS and should not install a driver.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">python</ac:parameter><ac:plain-text-body><![CDATA[-- PRODUCER (SQL)
+GRANT SELECT ON SCHEMA demo_sales.gold_products TO `app_sp`;
+-- Warehouse -> Permissions -> app_sp = CAN USE; note the warehouse_id
+
+# CONSUMER (Python over HTTPS)
+resp = requests.post(f"{HOST}/api/2.0/sql/statements",
+    headers={'Authorization': f'Bearer {TOKEN}'},
+    json={'warehouse_id': WH, 'catalog': 'demo_sales', 'schema': 'gold_products',
+          'statement': 'SELECT * FROM revenue_dashboard WHERE region = :region LIMIT 100',
+          'parameters': [{'name': 'region', 'value': 'us-east-1', 'type': 'STRING'}],
+          'disposition': 'INLINE'})]]></ac:plain-text-body></ac:structured-macro>
+<p>Parameterized statements prevent injection; use <code>EXTERNAL_LINKS</code> for large exports.</p>
+
+<h3>Pattern 10 &mdash; Lakehouse Federation (You Are the Consumer)</h3>
+<p><strong>When to use:</strong> You need a query engine's data (Snowflake, Postgres, Redshift, BigQuery) live, without building an ingestion pipeline.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- CONSUMER (Databricks)
+CREATE CONNECTION partner_snowflake TYPE snowflake OPTIONS (
+  host 'partner_account.snowflakecomputing.com', port '443',
+  user secret('partner','sf_user'), password secret('partner','sf_password'));
+CREATE FOREIGN CATALOG partner_sales USING CONNECTION partner_snowflake
+  OPTIONS (database 'SALES_DB');
+SELECT o.order_id, o.amount, g.margin
+  FROM partner_sales.public.orders o
+  JOIN demo_sales.gold_products.product_catalog_public g USING (product_id);]]></ac:plain-text-body></ac:structured-macro>
+<p>Queries push down to Snowflake &mdash; no copy into your S3. Materialize locally only if it gets chatty.</p>
+
+<h3>Pattern 11 &mdash; Catalog Federation: AWS Glue / Hive Metastore (You Are the Consumer)</h3>
+<p><strong>When to use:</strong> You need to read a whole AWS Glue / Hive Metastore &mdash; a "unified layer" mixing native UC Delta and Glue-registered S3 tables &mdash; through one namespace.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">python</ac:parameter><ac:plain-text-body><![CDATA[-- Setup -- federate the Glue catalog once (SQL)
+CREATE CONNECTION glue_conn TYPE glue OPTIONS (
+  aws_region 'us-east-1', aws_account_id '<glue-account-id>',
+  credential '<uc-service-credential-id>');
+CREATE FOREIGN CATALOG glue_federated USING CONNECTION glue_conn
+  OPTIONS (storage_root 's3://demo-glue-backed/');
+
+# CONSUMER -- read Glue-registered tables via the three-level namespace
+df = spark.read.table("glue_federated.curated_sales.fct_order_line")
+df.filter("order_date >= '2026-07-01'").show(5)]]></ac:plain-text-body></ac:structured-macro>
+<p>The consumer never needs to know a table lives in Glue-backed S3 vs. UC-managed storage &mdash; UC routes and governs both.</p>
+
+<h3>Pattern 12 &mdash; Consume a Partner's S3 Bucket (You Are the Consumer)</h3>
+<p><strong>When to use:</strong> A partner drops Delta/Parquet files in their S3 bucket and grants you a read-only cross-account IAM role.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- CONSUMER (Databricks)
+CREATE STORAGE CREDENTIAL partner_read_cred
+  WITH (AWS_IAM_ROLE = 'arn:aws:iam::PARTNER_ACCOUNT:role/read-role');
+CREATE EXTERNAL LOCATION partner_feed
+  URL 's3://partner-feed/demo-exports/' WITH (STORAGE CREDENTIAL partner_read_cred);
+CREATE TABLE bronze.partner_orders
+  USING DELTA LOCATION 's3://partner-feed/demo-exports/orders';]]></ac:plain-text-body></ac:structured-macro>
+<p>Read-in-place = no duplicate storage; use <code>COPY INTO</code> instead for an isolated local snapshot.</p>
+
+<h3>Pattern 13 &mdash; Consume an Open Delta Sharing Feed (You Are the Consumer)</h3>
+<p><strong>When to use:</strong> You subscribe to a data vendor's open Delta Sharing feed (the vendor may not even be on Databricks).</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">python</ac:parameter><ac:plain-text-body><![CDATA[# CONSUMER (Databricks)
+PROFILE = "/Volumes/main/secure/config.share"
+df = spark.read.format('deltaSharing').load(f"{PROFILE}#vendor_share.gold.metrics")
+df.write.mode('overwrite').saveAsTable('bronze.vendor_metrics')]]></ac:plain-text-body></ac:structured-macro>
+<p>Works even if the vendor is not on Databricks. Persist into bronze only if you need to keep it.</p>
+
+<h3>Pattern 14 &mdash; API Gateway / OData Facade to SQL Statement Execution</h3>
+<p><strong>When to use:</strong> An external app must read over plain HTTPS and must not hold Databricks credentials. A managed gateway fronts the Statement Execution API.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">python</ac:parameter><ac:plain-text-body><![CDATA[-- PRODUCER -- grant the backend service principal (SQL)
+GRANT USE CATALOG ON CATALOG demo_sales TO `app_backend_sp`;
+GRANT USE SCHEMA ON SCHEMA demo_sales.gold_products TO `app_backend_sp`;
+GRANT SELECT ON SCHEMA demo_sales.gold_products TO `app_backend_sp`;
+
+# CONSUMER (App) -- talks only to the gateway
+import os, requests
+GATEWAY = os.environ['DATA_API_GATEWAY']
+resp = requests.get(f"{GATEWAY}/gold_products/revenue_dashboard",
+    headers={'x-api-key': os.environ['DATA_API_KEY']},
+    params={'$select': 'region,revenue', '$filter': "region eq 'us-east-1'"})]]></ac:plain-text-body></ac:structured-macro>
+<p>Same governed source as Pattern 9 &mdash; the difference is the app never sees Databricks credentials. Gold + <code>contains_pii=false</code> only.</p>
+
+<h3>Pattern 15 &mdash; Provider PUSH to Consumer Datamart (Last Resort)</h3>
+<p><strong>When to use:</strong> The consumer cannot pull (a legacy app / relational datamart). The provider pushes governed gold on a schedule. Copy-based &mdash; use only when no pull path exists.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">python</ac:parameter><ac:plain-text-body><![CDATA[# PRODUCER -- scheduled job
+from pyspark.sql import functions as F
+gold = (spark.read.table("demo_sales.gold_products.revenue_dashboard")
+          .filter(F.col("updated_at") > last_watermark))
+(gold.write.format("jdbc")
+   .option("url", DATAMART_JDBC_URL)
+   .option("dbtable", "dbo.stg_revenue_dashboard")
+   .option("truncate", "true").mode("overwrite").options(**JDBC_PROPS).save())
+# Then server-side: MERGE stg INTO target ON PK; advance watermark in same txn]]></ac:plain-text-body></ac:structured-macro>
+<p>The last rung of the ladder. Physical copy + batch latency, and the provider owns the DBU. Because the data leaves Unity Catalog, mask at source and re-tag downstream.</p>
+
+<h3>Pattern 16 &mdash; Online Tables / Model Serving (Sub-Second)</h3>
+<p><strong>When to use:</strong> Sub-second, per-row lookups for live inference. This is not a SQL Warehouse or Delta Sharing job.</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- PRODUCER
+CREATE TABLE demo_sales.gold_products.customer_features AS SELECT ...;]]></ac:plain-text-body></ac:structured-macro>
+<p>If your "real-time" need is single-row inference, reach for serving &mdash; not a warehouse. Anonymized gold only for external/ML serving.</p>
+<hr/>
+<p><em>This guide describes a general, vendor-neutral approach. All product and platform names are the property of their respective owners. Treat the code as starting templates and adapt them to your environment.</em></p>

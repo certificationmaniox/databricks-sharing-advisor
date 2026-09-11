@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="1500" viewBox="0 0 1180 1500" font-family="Helvetica,Arial,sans-serif">
+<style>
+.dec{fill:#fef3c7;stroke:#d97706;stroke-width:2}
+.out{fill:#dcfce7;stroke:#16a34a;stroke-width:2}
+.outc{fill:#cffafe;stroke:#0891b2;stroke-width:2}
+.ban{fill:#dbeafe;stroke:#2563eb;stroke-width:1.5}
+.ref{fill:#ede9fe;stroke:#7c3aed;stroke-width:2}
+.st{fill:#1f2937;stroke:#111827;stroke-width:2}
+.tdec{fill:#78350f;font-size:12px;text-anchor:middle}
+.tout{fill:#14532d;font-size:11px;font-weight:bold;text-anchor:middle}
+.toutc{fill:#164e63;font-size:11px;font-weight:bold;text-anchor:middle}
+.tban{fill:#1e3a8a;font-size:12px;font-weight:bold;text-anchor:middle}
+.tst{fill:#fff;font-size:13px;font-weight:bold;text-anchor:middle}
+.tref{fill:#4c1d95;font-size:11px}
+.eno{stroke:#6b7280;stroke-width:2;fill:none}
+.eyes{stroke:#16a34a;stroke-width:2;fill:none}
+.emain{stroke:#111827;stroke-width:2;fill:none}
+.lyes{fill:#14532d;font-size:11px;font-weight:bold}
+.lno{fill:#374151;font-size:11px}
+.lbl{fill:#1e3a8a;font-size:12px;font-weight:bold;text-anchor:middle}
+</style>
+<defs>
+<marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#374151"/></marker>
+<marker id="arg" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#16a34a"/></marker>
+<marker id="arb" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#2563eb"/></marker>
+</defs>
+<!-- edges: top spine -->
+<path class="emain" marker-end="url(#ar)" d="M590,95 L590,130"/>
+<path class="eno" marker-end="url(#ar)" d="M590,190 L590,230"/>
+<path class="emain" marker-end="url(#ar)" d="M590,320 L590,360"/>
+<!-- direction split -->
+<path class="emain" marker-end="url(#arb)" d="M510,405 L300,405 L300,470"/>
+<path class="emain" marker-end="url(#arb)" d="M670,405 L890,405 L890,470"/>
+<text class="lbl" x="360" y="395">Producer (share out)</text>
+<text class="lbl" x="820" y="395">Consumer (bring in)</text>
+
+<!-- START -->
+<rect class="st" x="470" y="45" width="240" height="50" rx="8"/>
+<text class="tst" x="590" y="66">Start:</text>
+<text class="tst" x="590" y="84">Data-sharing scenario</text>
+<!-- STEP 0 modality banner -->
+<rect class="ban" x="410" y="130" width="360" height="30"/>
+<text class="tban" x="590" y="150">STEP 0 &#8212; Collaboration modality</text>
+<!-- modality note -->
+<rect class="ref" x="360" y="190" width="460" height="60" rx="8"/>
+<text class="tref" x="372" y="210" font-weight="bold">Not table sharing? Route here first:</text>
+<text class="tref" x="372" y="228">AI asset &#8594; AI-ASSET SHARING &#183; raw rows hidden &#8594; CLEAN ROOM</text>
+<text class="tref" x="372" y="244">many/unknown consumers &#8594; MARKETPLACE &#183; else &#8594; table sharing &#8595;</text>
+<!-- DECISION 0.5 direction -->
+<polygon class="dec" points="590,300 700,365 590,430 480,365"/>
+<text class="tdec" x="590" y="358">STEP 0.5 &#8212; Direction:</text>
+<text class="tdec" x="590" y="374">producer or consumer?</text>
+<!-- ===== PRODUCER COLUMN (left) ===== -->
+<rect class="ban" x="120" y="470" width="360" height="28"/>
+<text class="tban" x="300" y="489">STEP 1 &#8212; PRODUCER protocol (first match wins)</text>
+<!-- producer decision spine: compact list boxes with Yes->outcome -->
+<!-- edges down the producer spine -->
+<path class="eno" marker-end="url(#ar)" d="M300,498 L300,520"/>
+<path class="eno" marker-end="url(#ar)" d="M300,590 L300,610"/>
+<path class="eno" marker-end="url(#ar)" d="M300,680 L300,700"/>
+<path class="eno" marker-end="url(#ar)" d="M300,770 L300,790"/>
+<path class="eno" marker-end="url(#ar)" d="M300,860 L300,880"/>
+<path class="eno" marker-end="url(#ar)" d="M300,950 L300,970"/>
+
+<rect class="dec" x="140" y="520" width="320" height="70" rx="6"/>
+<text class="tdec" x="300" y="545">Read-write? &#8594; SHARED S3 EXTERNAL</text>
+<text class="tdec" x="300" y="561">LOCATION (IAM). Else same metastore?</text>
+<text class="tdec" x="300" y="577">&#8594; DIRECT GRANT + views</text>
+
+<rect class="dec" x="140" y="610" width="320" height="60" rx="6"/>
+<text class="tdec" x="300" y="635">Live SQL over JDBC/ODBC? &#8594; JDBC</text>
+<text class="tdec" x="300" y="651">SQL WAREHOUSE (provider pays)</text>
+
+<rect class="dec" x="140" y="700" width="320" height="60" rx="6"/>
+<text class="tdec" x="300" y="725">Iceberg engine / Iceberg-UniForm?</text>
+<text class="tdec" x="300" y="741">&#8594; ICEBERG REST SHARING</text>
+
+<rect class="dec" x="140" y="790" width="320" height="60" rx="6"/>
+<text class="tdec" x="300" y="815">Databricks consumer &#8594; D2D SHARING.</text>
+<text class="tdec" x="300" y="831">Snowflake/Power BI/Python &#8594; DELTA SHARING</text>
+
+<rect class="dec" x="140" y="880" width="320" height="60" rx="6"/>
+<text class="tdec" x="300" y="905">App over HTTP &#8594; SQL STATEMENT API /</text>
+<text class="tdec" x="300" y="921">API GATEWAY (no DBX creds)</text>
+
+<rect class="out" x="140" y="970" width="320" height="72" rx="8"/>
+<text class="tout" x="300" y="993">Sub-second lookups &#8594; ONLINE TABLES /</text>
+<text class="tout" x="300" y="1009">MODEL SERVING (off-ladder)</text>
+<text class="tout" x="300" y="1027">Consumer can't pull &#8594; PROVIDER PUSH (last)</text>
+<!-- ===== CONSUMER COLUMN (right) ===== -->
+<rect class="ban" x="710" y="470" width="360" height="28"/>
+<text class="tban" x="890" y="489">STEP 1-C &#8212; CONSUMER intake (source_platform)</text>
+<path class="eno" marker-end="url(#ar)" d="M890,498 L890,520"/>
+<path class="eno" marker-end="url(#ar)" d="M890,576 L890,596"/>
+<path class="eno" marker-end="url(#ar)" d="M890,652 L890,672"/>
+<path class="eno" marker-end="url(#ar)" d="M890,728 L890,748"/>
+<path class="eno" marker-end="url(#ar)" d="M890,804 L890,824"/>
+
+<rect class="outc" x="730" y="520" width="320" height="56" rx="8"/>
+<text class="toutc" x="890" y="543">Another Databricks metastore &#8594;</text>
+<text class="toutc" x="890" y="559">MOUNT D2D SHARE as catalog</text>
+
+<rect class="outc" x="730" y="596" width="320" height="56" rx="8"/>
+<text class="toutc" x="890" y="619">Snowflake/Postgres/Redshift/BigQuery</text>
+<text class="toutc" x="890" y="635">&#8594; LAKEHOUSE FEDERATION</text>
+
+<rect class="outc" x="730" y="672" width="320" height="56" rx="8"/>
+<text class="toutc" x="890" y="695">AWS Glue / Hive Metastore &#8594;</text>
+<text class="toutc" x="890" y="711">CATALOG FEDERATION (one namespace)</text>
+
+<rect class="outc" x="730" y="748" width="320" height="56" rx="8"/>
+<text class="toutc" x="890" y="771">Partner S3 (Delta/Parquet) &#8594;</text>
+<text class="toutc" x="890" y="787">EXTERNAL LOCATION (read-only IAM)</text>
+
+<rect class="outc" x="730" y="824" width="320" height="56" rx="8"/>
+<text class="toutc" x="890" y="847">Open Delta Sharing feed &#8594;</text>
+<text class="toutc" x="890" y="863">CONSUME OPEN DELTA SHARING</text>
+
+<text class="lno" x="730" y="900">Default: query in place, not copy in.</text>
+
+<!-- ===== REFINE (producer, 1b/1c) ===== -->
+<rect class="ban" x="120" y="1070" width="360" height="28"/>
+<text class="tban" x="300" y="1089">STEP 1b/1c &#8212; refine object &amp; format</text>
+<rect class="ref" x="120" y="1108" width="360" height="120" rx="8"/>
+<text class="tref" x="132" y="1130" font-weight="bold">1b Shared object:</text>
+<text class="tref" x="132" y="1148">&#8226; real-time &#8594; STREAMING TABLE</text>
+<text class="tref" x="132" y="1164">&#8226; aggregates only &#8594; MATERIALIZED VIEW</text>
+<text class="tref" x="132" y="1186" font-weight="bold">1c Shared format:</text>
+<text class="tref" x="132" y="1204">&#8226; cross-engine CDC &#8594; ICEBERG v3 (DV on)</text>
+<text class="tref" x="132" y="1220">&#8226; UniForm/CompatV2 &#8594; DV OFF &#183; VARIANT for semi-struct</text>
+<!-- ===== ESCALATION LADDER ===== -->
+<rect class="ban" x="710" y="1070" width="360" height="28"/>
+<text class="tban" x="890" y="1089">Escalation ladder (top rung first)</text>
+<rect class="ref" x="710" y="1108" width="360" height="120" rx="8"/>
+<text class="tref" x="722" y="1130">1. Direct GRANT (same metastore)</text>
+<text class="tref" x="722" y="1148">2. D2D Delta Sharing</text>
+<text class="tref" x="722" y="1166">3. Federation / UniForm + Iceberg REST</text>
+<text class="tref" x="722" y="1184">4. JDBC / SQL API (+ gateway facade)</text>
+<text class="tref" x="722" y="1202">5. Open Delta Sharing</text>
+<text class="tref" x="722" y="1220">6. Provider push / copy (last resort)</text>
+
+<!-- ===== CROSS-CUTTING ===== -->
+<rect class="ban" x="120" y="1270" width="950" height="56"/>
+<text class="tban" x="595" y="1292">CROSS-CUTTING (external, off-platform recipient)</text>
+<text class="tref" x="130" y="1312" text-anchor="start">federated identity (own IdP) &#183; managed network gateway &#183; cross-cloud connectivity + auto-replication to cut egress &#183; cross-domain sharing for regulated boundaries</text>
+
+<text x="130" y="1360" font-size="11" fill="#64748b">Green = producer solution &#183; Cyan = consumer solution &#183; Amber = decision &#183; Purple = refinement/ladder. First match wins at each step.</text>
+</svg>

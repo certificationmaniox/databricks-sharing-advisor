@@ -1,0 +1,139 @@
+<p><em>Sharing data across teams, platforms, and clouds looks simple until you are several meetings deep in it. Same metastore or different? Read-only or read-write? Does the other side even need raw rows, or just an answer? This post walks through a decision-driven way to pick the right data-sharing architecture the first time, starting with a question most guides skip: what kind of collaboration is this in the first place?</em></p>
+
+<h2>Start one level up: pick the collaboration modality</h2>
+<p>Most sharing guides jump straight to "which sharing protocol". That skips the more important question. Before choosing a protocol, decide the modality:</p>
+<ul>
+<li><strong>Direct table sharing</strong> — a known consumer needs live, governed access to specific tables or views.</li>
+<li><strong>Privacy-centric collaboration (clean rooms)</strong> — two or more parties want to analyze combined data without any side exposing its raw rows. This is the right answer when sensitive or personal data is involved and an external party is on the other end.</li>
+<li><strong>Broad publishing (a marketplace)</strong> — you want to offer a data or AI-asset product to many, possibly unknown, consumers rather than managing one recipient at a time.</li>
+<li><strong>AI-asset sharing</strong> — the thing being shared is a model, an agent, or unstructured files, or the consumer wants a natural-language question-answering interface over the data instead of the rows themselves.</li>
+</ul>
+<p>Only once you have settled the modality does the classic "which protocol" tree apply, and then only to the tabular portion.</p>
+
+<h2>The inputs that actually decide the architecture</h2>
+<p>For direct table sharing, a handful of concrete inputs drive the choice:</p>
+<ul>
+<li><strong>Topology</strong> — Are producer and consumer in the same metastore? Same account? Same region?</li>
+<li><strong>Consumer platform</strong> — the same lakehouse platform, a cloud warehouse, a BI tool, Python/Pandas, a non-native Spark job, dbt, a generic Iceberg REST client, or a JDBC/ODBC SQL client.</li>
+<li><strong>Access type</strong> — read-only, or read-write?</li>
+<li><strong>Data sensitivity</strong> — Public, Internal, Confidential, or Restricted; and does it contain personal data?</li>
+<li><strong>Freshness and volume</strong> — real-time, hourly, daily; small or multi-terabyte.</li>
+</ul>
+
+<h2>A decision tree you can actually follow</h2>
+<p>Evaluate these in order. The first match wins.</p>
+<ol>
+<li><strong>Need read-write?</strong> Open sharing protocols are read-only. Writable access points to a shared object-store location with separate IAM roles, or governed managed-Iceberg writes over an Iceberg REST catalog.</li>
+<li><strong>Same metastore?</strong> Grant SELECT directly and let the consumer build views. Zero copy, zero extra compute, live reads.</li>
+<li><strong>Consumer wants live SQL over JDBC/ODBC?</strong> Point them at a SQL warehouse. Governance applies at query time and no data leaves the platform, but the provider pays the query compute.</li>
+<li><strong>Consumer runs an Iceberg engine, or the tables are Iceberg/UniForm?</strong> Share over the Iceberg REST catalog. The consumer reads live as native Iceberg, and governance stays central.</li>
+<li><strong>Consumer is another workspace on the same platform?</strong> Use native platform-to-platform sharing.</li>
+<li><strong>Consumer is a warehouse, BI tool, Python, or Spark?</strong> Use the matching open-protocol path for that platform.</li>
+</ol>
+<p>Read-write and same-metastore short-circuit the tree before platform is even considered, because they change the whole approach.</p>
+
+<h2>The complete decision tree, end to end</h2>
+<p>Here is the whole thing in one place, from collaboration modality down to the recommended architecture and the format refinement. Evaluate top to bottom; the first branch that matches wins. Copy it, adapt the labels to your own stack, and keep it as a reusable reference.</p>
+<pre>
+STEP 0 - COLLABORATION MODALITY (decide this first)
+===================================================
+Q0a. Sharing a model, agent, or unstructured files?  or want a
+     natural-language Q&A interface instead of raw rows?
+        YES -> AI-ASSET SHARING (open protocol)
+               (then run STEP 1 for any tables the asset depends on)
+        NO  -> next
+
+Q0b. Must NO party expose raw rows? (joint analysis on combined data,
+     especially sensitive/personal data going to an external party)
+        YES -> CLEAN ROOM (privacy-centric collaboration)
+        NO  -> next
+
+Q0c. Publishing to many / unknown consumers, or want a listing?
+        YES -> MARKETPLACE (broad publishing over open protocol)
+        NO  -> next
+
+Q0d. Otherwise
+        -> DIRECT TABLE SHARING -> go to STEP 1
+
+
+STEP 1 - PROTOCOL (only for direct table sharing; first match wins)
+===================================================================
+1. Need read-write access?
+        -> SHARED OBJECT-STORE LOCATION (separate IAM roles)
+           or governed managed-Iceberg writes over Iceberg REST
+2. Producer and consumer in the SAME metastore?
+        -> DIRECT GRANT + cross-catalog views (zero copy, live)
+3. Consumer wants a live SQL endpoint (JDBC/ODBC: BI tool, app, dbt)?
+        -> JDBC/ODBC over a SQL WAREHOUSE
+           (governed at query time; provider pays query compute)
+4. Consumer runs an Iceberg engine, OR tables are Iceberg/UniForm?
+        -> ICEBERG REST SHARING (live, zero-copy, central governance)
+5. Consumer is another workspace on the SAME platform?
+        -> NATIVE PLATFORM-TO-PLATFORM SHARING
+6. Consumer is a cloud warehouse?
+        -> OPEN-PROTOCOL SHARING -> warehouse path
+7. Consumer is a BI tool?
+        -> OPEN-PROTOCOL SHARING -> BI connector (import or live)
+8. Consumer is Python/Pandas or non-native Spark?
+        -> OPEN-PROTOCOL SHARING -> client library
+9. Anything else (dbt, other)
+        -> OPEN-PROTOCOL SHARING -> generic SQL/connector
+
+
+STEP 1b - SHARED OBJECT (refines an open-protocol share)
+========================================================
+Freshness real-time / near real-time?   -> share a STREAMING TABLE
+Consumer needs only aggregates/summaries -> share a MATERIALIZED VIEW
+                                            (better for sensitive data)
+Otherwise                                -> share a TABLE
+
+
+STEP 1c - SHARED FORMAT (refines the table's format)
+====================================================
+Cross-engine change data capture, non-native consumer
+        -> managed ICEBERG v3 (row lineage + deletion vectors)
+Semi-structured data (logs / API / events)
+        -> managed ICEBERG v3 with a VARIANT column
+Delta source + Iceberg-reading consumer
+        -> UNIFORM (one Delta copy, read live as Iceberg)
+Otherwise
+        -> keep the source format as-is
+
+
+CROSS-CUTTING (any external, off-platform recipient)
+====================================================
+- Federated identity (recipient uses its own IdP) over long-lived tokens
+- Managed network gateway for live access without hand-crafted firewall rules
+- Cross-cloud connectivity + automatic replication to cut egress
+- Purpose-built cross-domain sharing for regulated boundaries
+</pre>
+<p>The shape is deliberate: the modality question sits above everything, then read-write and same-metastore short-circuit the protocol choice before platform matters, and the last two steps only refine what object and what format you share. Nothing below a matched branch needs to be evaluated.</p>
+
+<h2>Match the shared format to the consumer</h2>
+<p>The format of what you share is a separate, refining choice on top of the protocol:</p>
+<ul>
+<li><strong>Cross-engine change data capture</strong> — modern Iceberg tables carry row lineage and deletion vectors, so a non-native consumer can identify and apply only what changed without full scans or file rewrites. Prefer this over a change feed the consumer's engine has to understand.</li>
+<li><strong>Semi-structured data</strong> — a native variant column type lets logs, API responses, and event payloads live beside relational columns in one governed table, queryable with standard SQL and no schema migration when new fields appear.</li>
+<li><strong>Delta source, Iceberg reader</strong> — a single copy can expose Iceberg metadata over the same files, so an external Iceberg engine reads it live while your platform keeps using it natively. One physical copy, two metadata views, no rewrite.</li>
+</ul>
+
+<h2>What good sharing looks like, regardless of path</h2>
+<ul>
+<li><strong>Keep one copy of the data.</strong> The best patterns read data in place rather than duplicating it. Iceberg REST sharing, direct grants, and JDBC all avoid a second copy.</li>
+<li><strong>Govern once, enforce everywhere.</strong> Define column masks, row filters, and tag-based policies in the catalog. For engines that query the catalog directly, cross-engine access control means they only ever read authorized rows and columns, without re-implementing the logic per tool.</li>
+<li><strong>Know what access control does and does not cover.</strong> Policies enforced during direct query do not automatically restrict what a share recipient receives. A recipient of a share gets full access to the shared object and applies their own controls. To limit what an external recipient sees, share an aggregated view, a filtered secure view, or only the relevant partitions rather than relying on provider-side masking to travel with the copy.</li>
+<li><strong>Never share raw personal data externally.</strong> For sensitive data going to an external party, prefer a clean room or share aggregates and anonymized products, and require private connectivity plus audit logging.</li>
+<li><strong>Mind the cost model.</strong> Open-protocol and Iceberg REST sharing cost the provider zero compute; the consumer pays for its own queries. A live SQL endpoint flips that — the provider pays per query, so right-size and auto-stop the warehouse. Cross-region reads add egress.</li>
+</ul>
+
+<h2>Authentication and networking for external recipients</h2>
+<p>When the recipient is external and off-platform, two things smooth the path: federated identity, so the recipient authenticates through its own identity provider instead of long-lived tokens, and a managed network gateway, so live access works without hand-crafted firewall rules. For cross-cloud or cross-region sharing, look for one-click connectivity and automatic replication to cut the egress penalty, and for regulated boundaries, purpose-built cross-domain sharing rather than a manual replica.</p>
+
+<h2>Where sharing is heading</h2>
+<p>Zero-copy sharing is expanding beyond tables to materialized views, streaming tables, and AI assets, and the underlying protocol is becoming vendor-neutral and open. Sharing live materialized views lets you publish precomputed aggregates instead of raw rows; sharing streaming tables gives consumers always-fresh data with no duplicate pipeline. The practical takeaway: prefer open, governed, read-in-place sharing over exporting files, and keep the catalog as the single point of governance.</p>
+
+<h2>The bottom line</h2>
+<p>Data sharing does not have to be a fresh judgment call every time. First decide the modality — direct share, clean room, marketplace, or AI-asset sharing. For a direct share, capture the topology, consumer platform, access type, and data sensitivity, then walk the decision tree and refine the format to match the consumer. You will land on an architecture that is governed, cost-aware, and right-sized, whether the consumer is another team in the same catalog or an external partner on a completely different stack.</p>
+
+<hr/>
+<p><em>This post describes a general, vendor-neutral approach to lakehouse data sharing. It is not affiliated with or endorsed by any vendor, and all product and platform names are the property of their respective owners. Treat any commands or configuration as starting templates and adapt them to your environment.</em></p>
