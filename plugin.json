@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "databricks-sharing-advisor",
+  "version": "1.0.0",
+  "description": "Recommends the best Databricks data-sharing architecture (Delta Sharing, Direct Grant, Iceberg REST, JDBC/ODBC SQL warehouse, or shared external location) for a given scenario by asking discovery questions and applying a decision tree. First picks the collaboration modality (direct table sharing, Clean Rooms, Marketplace, or AI-asset/OpenSharing), then produces prerequisites, security measures, cost considerations, implementation steps, and ready-to-run SQL/code, and can publish recommendations to Confluence via the Atlassian MCP. Covers both directions (producer sharing out and consumer bringing data in via federation, external location, or open sharing), same/different metastore, cross-account, cross-region, Iceberg v3 / UniForm format choices, an escalation ladder, troubleshooting, and Databricks/Snowflake/Power BI/Python/Spark/Iceberg/JDBC/REST-API consumers.",
+  "author": {
+    "name": "maniox"
+  },
+  "homepage": "https://github.com/certificationmaniox/databricks-sharing-advisor",
+  "repository": "https://github.com/certificationmaniox/databricks-sharing-advisor",
+  "keywords": [
+    "databricks",
+    "delta-sharing",
+    "unity-catalog",
+    "apache-iceberg",
+    "jdbc",
+    "confluence"
+  ]
+}
