@@ -1,4 +1,4 @@
-<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Databricks on AWS infrastructure">
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AWS platform on top of Databricks">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#20303F"/>
@@ -24,24 +24,8 @@
   <!-- Background tile -->
   <rect x="0" y="0" width="512" height="512" rx="104" fill="url(#bg)"/>
 
-  <!-- ===== AWS INFRASTRUCTURE PLATFORM (isometric slab) ===== -->
-  <g filter="url(#soft)">
-    <!-- top face -->
-    <path d="M96 356 L256 300 L416 356 L256 412 Z" fill="url(#platformTop)"/>
-    <!-- front-left face -->
-    <path d="M96 356 L256 412 L256 452 L96 396 Z" fill="url(#platform)"/>
-    <!-- front-right face -->
-    <path d="M416 356 L256 412 L256 452 L416 396 Z" fill="#D96A0B"/>
-  </g>
-  <!-- AWS wordmark on the platform top face -->
-  <text x="256" y="366" text-anchor="middle" font-family="Arial, Helvetica, sans-serif"
-        font-size="30" font-weight="800" fill="#5A2E04">AWS</text>
-  <!-- AWS smile arrow, anchored just under the platform -->
-  <path d="M188 470 q68 24 136 0" fill="none" stroke="#FF9900" stroke-width="9" stroke-linecap="round"/>
-  <path d="M312 466 l20 4 -12 17 z" fill="#FF9900"/>
-
-  <!-- ===== DATABRICKS STACKED MARK ON TOP ===== -->
-  <g filter="url(#soft)" transform="translate(256,110)">
+  <!-- ===== DATABRICKS STACKED MARK AS THE BASE (bottom) ===== -->
+  <g filter="url(#soft)" transform="translate(256,300)">
     <!-- top diamond -->
     <path d="M0 0 L74 34 L0 68 L-74 34 Z" fill="url(#brick)"/>
     <!-- middle layer -->
@@ -50,7 +34,23 @@
     <path d="M-74 90 L0 124 L74 90 L74 110 L0 144 L-74 110 Z" fill="url(#brick)" opacity="0.8"/>
   </g>
 
-  <!-- Databricks label -->
-  <text x="256" y="292" text-anchor="middle" font-family="Arial, Helvetica, sans-serif"
-        font-size="32" font-weight="800" fill="#FF6A4D">Databricks</text>
+  <!-- Databricks label under the base mark -->
+  <text x="256" y="484" text-anchor="middle" font-family="Arial, Helvetica, sans-serif"
+        font-size="30" font-weight="800" fill="#FF6A4D">Databricks</text>
+
+  <!-- ===== AWS INFRASTRUCTURE PLATFORM ON TOP (isometric slab) ===== -->
+  <g filter="url(#soft)">
+    <!-- top face -->
+    <path d="M96 168 L256 112 L416 168 L256 224 Z" fill="url(#platformTop)"/>
+    <!-- front-left face -->
+    <path d="M96 168 L256 224 L256 264 L96 208 Z" fill="url(#platform)"/>
+    <!-- front-right face -->
+    <path d="M416 168 L256 224 L256 264 L416 208 Z" fill="#D96A0B"/>
+  </g>
+  <!-- AWS wordmark on the platform top face -->
+  <text x="256" y="178" text-anchor="middle" font-family="Arial, Helvetica, sans-serif"
+        font-size="34" font-weight="800" fill="#5A2E04">AWS</text>
+  <!-- AWS smile arrow, anchored just under the platform -->
+  <path d="M188 236 q68 24 136 0" fill="none" stroke="#FF9900" stroke-width="9" stroke-linecap="round"/>
+  <path d="M312 232 l20 4 -12 17 z" fill="#FF9900"/>
 </svg>

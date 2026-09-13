@@ -10,6 +10,8 @@ repository: "https://github.com/certificationmaniox/databricks-sharing-advisor"
 
 # Databricks Sharing Architecture Advisor
 
+![AWS platform on top of Databricks](icon.png)
+
 ## Overview
 
 This power helps you choose the right architecture for sharing Databricks data with a
