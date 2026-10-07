@@ -1,8 +1,8 @@
 ---
 name: "databricks-sharing-advisor"
 displayName: "Databricks Sharing Architecture Advisor"
-description: "Recommends the best Databricks data-sharing architecture (Delta Sharing, Direct Grant, Iceberg REST, JDBC/ODBC SQL warehouse, or shared external location) for a given scenario by asking discovery questions and applying a decision tree. First picks the collaboration modality — direct table sharing, Clean Rooms, Marketplace, or AI-asset/OpenSharing — then produces prerequisites, security measures, cost considerations, implementation steps, and ready-to-run SQL/code, and can publish recommendations to Confluence via the Atlassian MCP. Covers both directions (producer sharing out and consumer bringing data in via federation / external location / open sharing), same/different metastore, cross-account, cross-region, Iceberg v3 / UniForm format choices, an escalation ladder, troubleshooting, and Databricks/Snowflake/Power BI/Python/Spark/Iceberg/JDBC/REST-API consumers."
-keywords: ["databricks", "delta-sharing", "unity-catalog", "apache-iceberg", "jdbc", "confluence"]
+description: "Recommends the best Databricks data-sharing architecture (Delta Sharing, Direct Grant, Iceberg REST, JDBC/ODBC SQL warehouse, or shared external location) for a given scenario by asking discovery questions and applying a decision tree. First picks the collaboration modality — direct table sharing, Clean Rooms, Marketplace, or AI-asset/OpenSharing — then produces prerequisites, security measures, cost considerations, implementation steps, and ready-to-run SQL/code, Covers both directions (producer sharing out and consumer bringing data in via federation / external location / open sharing), same/different metastore, cross-account, cross-region, Iceberg v3 / UniForm format choices, an escalation ladder, troubleshooting, and Databricks/Snowflake/Power BI/Python/Spark/Iceberg/JDBC/REST-API consumers."
+keywords: ["databricks", "delta-sharing", "unity-catalog", "apache-iceberg", "jdbc"]
 author: "maniox"
 source: "https://github.com/certificationmaniox/databricks-sharing-advisor"
 repository: "https://github.com/certificationmaniox/databricks-sharing-advisor"
@@ -132,17 +132,6 @@ Discovery Questions interactively instead of assuming everything. Rules:
 - **Always recap.** Before or with the recommendation, show the Input Summary (step 8 of Output
   Format) listing every value used and which were defaults, so the user can correct any.
 
-5. Optionally, publish the recommendation to Confluence or pull existing sharing docs for context using the Atlassian Confluence MCP (see below).
-
-## Confluence Integration (Atlassian MCP)
-
-This power ships an `mcp.json` for the Atlassian Confluence MCP server
-(`@aashari/mcp-server-atlassian-confluence`). Use it to:
-- **Publish** a generated recommendation as a Confluence page (e.g. a "Data Sharing Design"
-  space) so the advisor's output becomes durable team documentation.
-- **Look up** existing sharing/governance runbooks or standards in Confluence and factor them
-  into the recommendation before answering.
-- **Search** for prior recommendations for the same consumer to keep decisions consistent.
 
 **Typical MCP tools** exposed by this server (exact names surface at runtime after the server
 is enabled — use the ones listed there): list/search Confluence spaces, list/search/get pages,
@@ -1224,40 +1213,6 @@ and matter for *what format to share*:
 - Delta source + Iceberg-reading consumer (e.g. Snowflake, Trino) → recommend **UniForm** to
   avoid a replication pipeline.
 
-## MCP Config Placeholders
-
-Before using the Confluence integration, replace the placeholders in `mcp.json` with your
-values and provide an API token via environment variable.
-
-- **`YOUR_ATLASSIAN_SITE_NAME`**: Your Atlassian site/subdomain — the part before
-  `.atlassian.net` (e.g. for `https://acme.atlassian.net` the value is `acme`).
-  - **How to get it:** It's in your Confluence/Jira URL. Use just the subdomain, not the full URL.
-
-- **`YOUR_ATLASSIAN_USER_EMAIL`**: The email address of the Atlassian account the API token
-  belongs to.
-  - **How to set it:** Use the email you log in to Atlassian with.
-
-- **`${ATLASSIAN_API_TOKEN}`**: An Atlassian API token, read from the `ATLASSIAN_API_TOKEN`
-  environment variable (do not hardcode the token in the file).
-  - **How to get it:**
-    1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
-    2. Click "Create API token", give it a label, and copy the value
-    3. Export it in your shell before launching Kiro:
-       `export ATLASSIAN_API_TOKEN="your-token-here"`
-
-**After replacing placeholders, your `mcp.json` env block should look like:**
-```json
-"env": {
-  "ATLASSIAN_SITE_NAME": "acme",
-  "ATLASSIAN_USER_EMAIL": "you@example.com",
-  "ATLASSIAN_API_TOKEN": "${ATLASSIAN_API_TOKEN}"
-}
-```
-
-**Note:** You already have this server configured in `~/.kiro/settings/mcp.json` (under
-`powers.mcpServers.atlassian-confluence`, site `certificationmaniox`) but it is currently
-`disabled: true`. Enable it (and export `ATLASSIAN_API_TOKEN`) to use the integration — see the
-testing steps.
 
 ---
 
